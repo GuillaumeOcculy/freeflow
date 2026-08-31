@@ -207,8 +207,10 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private let contextModelStorageKey = "context_model"
     private let holdShortcutStorageKey = "hold_shortcut"
     private let copyAgainShortcutStorageKey = "copy_again_shortcut"
+    private let addVocabularyShortcutStorageKey = "add_vocabulary_shortcut"
     private let savedHoldCustomShortcutStorageKey = "saved_hold_custom_shortcut"
     private let savedCopyAgainCustomShortcutStorageKey = "saved_copy_again_custom_shortcut"
+    private let savedAddVocabularyCustomShortcutStorageKey = "saved_add_vocabulary_custom_shortcut"
     private let customVocabularyStorageKey = "custom_vocabulary"
     private let transcriptionLanguageStorageKey = "transcription_language"
     private let selectedMicrophoneStorageKey = "selected_microphone_id"
@@ -349,6 +351,13 @@ final class AppState: ObservableObject, @unchecked Sendable {
         }
     }
 
+    @Published var addVocabularyShortcut: ShortcutBinding {
+        didSet {
+            persistShortcut(addVocabularyShortcut, key: addVocabularyShortcutStorageKey)
+            restartHotkeyMonitoring()
+        }
+    }
+
     @Published private(set) var savedHoldCustomShortcut: ShortcutBinding? {
         didSet {
             persistOptionalShortcut(savedHoldCustomShortcut, key: savedHoldCustomShortcutStorageKey)
@@ -358,6 +367,12 @@ final class AppState: ObservableObject, @unchecked Sendable {
     @Published private(set) var savedCopyAgainCustomShortcut: ShortcutBinding? {
         didSet {
             persistOptionalShortcut(savedCopyAgainCustomShortcut, key: savedCopyAgainCustomShortcutStorageKey)
+        }
+    }
+
+    @Published private(set) var savedAddVocabularyCustomShortcut: ShortcutBinding? {
+        didSet {
+            persistOptionalShortcut(savedAddVocabularyCustomShortcut, key: savedAddVocabularyCustomShortcutStorageKey)
         }
     }
 
@@ -567,7 +582,9 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private var recordingInitializationTimer: DispatchSourceTimer?
     private var transcriptionTask: Task<Void, Never>?
     private var transcribingAudioFileName: String?
-    private var contextService: AppContextService
+    /// Not private: the vocabulary shortcut extension reads the current
+    /// selection through it.
+    fileprivate(set) var contextService: AppContextService
     private var contextCaptureTask: Task<AppContext?, Never>?
     private var doubleTapWindowWorkItem: DispatchWorkItem?
     private var capturedContext: AppContext?
@@ -608,7 +625,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let contextModel = Self.loadStoredContextModel(key: contextModelStorageKey)
         let shortcuts = Self.loadShortcutConfiguration(
             holdKey: holdShortcutStorageKey,
-            copyAgainKey: copyAgainShortcutStorageKey
+            copyAgainKey: copyAgainShortcutStorageKey,
+            addVocabularyKey: addVocabularyShortcutStorageKey
         )
         let savedHoldCustomShortcut = Self.loadSavedCustomShortcut(
             forKey: savedHoldCustomShortcutStorageKey,
@@ -617,6 +635,10 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let savedCopyAgainCustomShortcut = Self.loadSavedCustomShortcut(
             forKey: savedCopyAgainCustomShortcutStorageKey,
             fallback: shortcuts.copyAgain.isCustom ? shortcuts.copyAgain : nil
+        )
+        let savedAddVocabularyCustomShortcut = Self.loadSavedCustomShortcut(
+            forKey: savedAddVocabularyCustomShortcutStorageKey,
+            fallback: shortcuts.addVocabulary.isCustom ? shortcuts.addVocabulary : nil
         )
         let customVocabulary = UserDefaults.standard.string(forKey: customVocabularyStorageKey) ?? ""
         let transcriptionLanguage = Self.normalizeTranscriptionLanguage(
@@ -700,8 +722,10 @@ final class AppState: ObservableObject, @unchecked Sendable {
         self.contextModel = contextModel
         self.holdShortcut = shortcuts.hold
         self.copyAgainShortcut = shortcuts.copyAgain
+        self.addVocabularyShortcut = shortcuts.addVocabulary
         self.savedHoldCustomShortcut = savedHoldCustomShortcut.binding
         self.savedCopyAgainCustomShortcut = savedCopyAgainCustomShortcut.binding
+        self.savedAddVocabularyCustomShortcut = savedAddVocabularyCustomShortcut.binding
         self.isCommandModeEnabled = isCommandModeEnabled
         self.commandModeStyle = commandModeStyle
         self.commandModeManualModifier = commandModeManualModifier
@@ -739,11 +763,17 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if shortcuts.didUpdateCopyAgainStoredValue {
             persistShortcut(shortcuts.copyAgain, key: copyAgainShortcutStorageKey)
         }
+        if shortcuts.didUpdateAddVocabularyStoredValue {
+            persistShortcut(shortcuts.addVocabulary, key: addVocabularyShortcutStorageKey)
+        }
         if savedHoldCustomShortcut.didUpdateStoredValue {
             persistOptionalShortcut(savedHoldCustomShortcut.binding, key: savedHoldCustomShortcutStorageKey)
         }
         if savedCopyAgainCustomShortcut.didUpdateStoredValue {
             persistOptionalShortcut(savedCopyAgainCustomShortcut.binding, key: savedCopyAgainCustomShortcutStorageKey)
+        }
+        if savedAddVocabularyCustomShortcut.didUpdateStoredValue {
+            persistOptionalShortcut(savedAddVocabularyCustomShortcut.binding, key: savedAddVocabularyCustomShortcutStorageKey)
         }
         Self.removeRetiredShortcutStorage()
 
@@ -796,8 +826,10 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private struct StoredShortcutConfiguration {
         let hold: ShortcutBinding
         let copyAgain: ShortcutBinding
+        let addVocabulary: ShortcutBinding
         let didUpdateHoldStoredValue: Bool
         let didUpdateCopyAgainStoredValue: Bool
+        let didUpdateAddVocabularyStoredValue: Bool
     }
 
     private struct StoredOptionalShortcut {
@@ -848,7 +880,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
 
     private static func loadShortcutConfiguration(
         holdKey: String,
-        copyAgainKey: String
+        copyAgainKey: String,
+        addVocabularyKey: String
     ) -> StoredShortcutConfiguration {
         let legacyPreset = ShortcutPreset(
             rawValue: UserDefaults.standard.string(forKey: "hotkey_option") ?? ShortcutPreset.fnKey.rawValue
@@ -856,11 +889,14 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let hold = legacyPreset.binding
         let storedHold = loadShortcut(forKey: holdKey)
         let storedCopyAgain = loadShortcut(forKey: copyAgainKey)
+        let storedAddVocabulary = loadShortcut(forKey: addVocabularyKey)
         return StoredShortcutConfiguration(
             hold: storedHold.binding ?? hold,
             copyAgain: storedCopyAgain.binding ?? .disabled,
+            addVocabulary: storedAddVocabulary.binding ?? .disabled,
             didUpdateHoldStoredValue: storedHold.binding == nil || storedHold.didNormalize,
-            didUpdateCopyAgainStoredValue: storedCopyAgain.didNormalize
+            didUpdateCopyAgainStoredValue: storedCopyAgain.didNormalize,
+            didUpdateAddVocabularyStoredValue: storedAddVocabulary.didNormalize
         )
     }
 
@@ -1388,7 +1424,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
     }
 
     var usesFnShortcut: Bool {
-        holdShortcut.usesFnKey || copyAgainShortcut.usesFnKey
+        holdShortcut.usesFnKey || copyAgainShortcut.usesFnKey || addVocabularyShortcut.usesFnKey
     }
 
     var hasEnabledHoldShortcut: Bool {
@@ -1416,6 +1452,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
             return savedHoldCustomShortcut
         case .copyAgain:
             return savedCopyAgainCustomShortcut
+        case .addVocabulary:
+            return savedAddVocabularyCustomShortcut
         }
     }
 
@@ -1459,6 +1497,12 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if role != .copyAgain, binding.conflicts(with: copyAgainShortcut) {
             return "This shortcut is already used by Paste Again."
         }
+        if role != .addVocabulary, binding.conflicts(with: addVocabularyShortcut) {
+            return "This shortcut is already used by Add Selection to Vocabulary."
+        }
+        if role == .addVocabulary, binding.conflicts(with: holdShortcut) {
+            return "Add Selection to Vocabulary cannot share the dictation shortcut."
+        }
         if role == .copyAgain {
             if binding.conflicts(with: holdShortcut) {
                 return "Paste Again cannot share the dictation shortcut."
@@ -1480,6 +1524,11 @@ final class AppState: ObservableObject, @unchecked Sendable {
                 savedCopyAgainCustomShortcut = binding
             }
             copyAgainShortcut = binding
+        case .addVocabulary:
+            if binding.isCustom {
+                savedAddVocabularyCustomShortcut = binding
+            }
+            addVocabularyShortcut = binding
         }
 
         return nil
@@ -1571,6 +1620,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         return ShortcutConfiguration(
             hold: holdShortcut,
             copyAgain: copyAgainShortcut,
+            addVocabulary: addVocabularyShortcut,
             permittedAdditionalExactMatchModifiers: permittedAdditionalExactMatchModifiers
         )
     }
@@ -1593,6 +1643,15 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private func handleShortcutEvent(_ event: ShortcutEvent) {
         if event == .copyAgainTriggered {
             copyLastTranscriptToPasteboard()
+            return
+        }
+
+        if event == .addVocabularyTriggered {
+            // The extension is main-actor isolated; shortcut events already
+            // arrive on the main queue, so this just satisfies the checker.
+            DispatchQueue.main.async { [weak self] in
+                self?.addSelectionToVocabulary()
+            }
             return
         }
 

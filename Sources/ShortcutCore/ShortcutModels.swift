@@ -55,6 +55,7 @@ enum RecordingTriggerMode: String, Codable {
 enum ShortcutRole {
     case hold
     case copyAgain
+    case addVocabulary
 
     /// The dictation binding is unified: it both holds and taps, so it is no
     /// longer named after one of the two gestures.
@@ -62,6 +63,7 @@ enum ShortcutRole {
         switch self {
         case .hold: return "Dictation Shortcut"
         case .copyAgain: return "Paste Again"
+        case .addVocabulary: return "Add Selection to Vocabulary"
         }
     }
 }
@@ -70,24 +72,28 @@ enum ShortcutEvent: Equatable {
     case holdActivated
     case holdDeactivated
     case copyAgainTriggered
+    case addVocabularyTriggered
 }
 
 struct ShortcutConfiguration: Equatable {
     let hold: ShortcutBinding
     let copyAgain: ShortcutBinding
+    let addVocabulary: ShortcutBinding
     let permittedAdditionalExactMatchModifiers: ShortcutModifiers
 
     init(
         hold: ShortcutBinding,
         copyAgain: ShortcutBinding = .disabled,
+        addVocabulary: ShortcutBinding = .disabled,
         permittedAdditionalExactMatchModifiers: ShortcutModifiers = []
     ) {
         self.hold = hold
         self.copyAgain = copyAgain
+        self.addVocabulary = addVocabulary
         self.permittedAdditionalExactMatchModifiers = permittedAdditionalExactMatchModifiers
     }
 
-    static let disabled = ShortcutConfiguration(hold: .disabled, copyAgain: .disabled)
+    static let disabled = ShortcutConfiguration(hold: .disabled, copyAgain: .disabled, addVocabulary: .disabled)
 }
 
 enum ShortcutPreset: String, CaseIterable, Identifiable, Codable {

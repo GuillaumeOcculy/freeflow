@@ -10,6 +10,7 @@ struct DictationShortcutEditor: View {
     @State private var activeCaptureRole: ShortcutRole?
     @State private var holdValidationMessage: String?
     @State private var copyAgainValidationMessage: String?
+    @State private var addVocabularyValidationMessage: String?
 
     init(showsIntroText: Bool = true, onCaptureStateChange: ((Bool) -> Void)? = nil) {
         self.showsIntroText = showsIntroText
@@ -55,6 +56,24 @@ struct DictationShortcutEditor: View {
                     copyAgainValidationMessage = appState.setShortcut(binding, for: .copyAgain)
                 }
             )
+
+            ShortcutRoleSection(
+                role: .addVocabulary,
+                selection: appState.addVocabularyShortcut,
+                validationMessage: addVocabularyValidationMessage,
+                isCapturing: Binding(
+                    get: { activeCaptureRole == .addVocabulary },
+                    set: { activeCaptureRole = $0 ? .addVocabulary : nil }
+                ),
+                onSelect: { binding in
+                    addVocabularyValidationMessage = appState.setShortcut(binding, for: .addVocabulary)
+                }
+            )
+
+            Text("Select a word you corrected by hand, then press the Add Selection to Vocabulary shortcut to teach it to \(AppName.displayName).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text("Custom shortcuts can use regular keys, modifier-only shortcuts, or modifier combinations.")
                 .font(.caption)

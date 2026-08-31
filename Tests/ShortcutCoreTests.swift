@@ -9,6 +9,7 @@ enum ShortcutCoreTests {
         testReducerHonorsExactModifierMatching()
         testRepeatedKeyDownDoesNotReactivate()
         testPasteAgainFiresOnLeadingEdgeOnly()
+        testAddVocabularyFiresOnLeadingEdgeAndIsInertForDictation()
         testBackendResetClearsActiveBindings()
         testBindingMigrationAndIdentity()
         testConflictDetection()
@@ -486,5 +487,56 @@ enum ShortcutCoreTests {
             .stop
         )
         TestSupport.expectEqual(controller.activeMode, nil)
+    }
+
+    /// Add to Vocabulary is a one-shot like Paste Again, and must never touch
+    /// dictation state.
+    private static func testAddVocabularyFiresOnLeadingEdgeAndIsInertForDictation() {
+        let binding = ShortcutBinding(
+            keyCode: 96,
+            keyDisplay: "F5",
+            modifiers: [],
+            kind: .key,
+            preset: nil
+        )
+        let configuration = ShortcutConfiguration(hold: .disabled, addVocabulary: binding)
+        let down = ShortcutMatcher.reduce(
+            state: ShortcutInputState(),
+            event: .keyChanged(keyCode: 96, isDown: true, isRepeat: false),
+            configuration: configuration
+        )
+        let repeated = ShortcutMatcher.reduce(
+            state: down.state,
+            event: .keyChanged(keyCode: 96, isDown: true, isRepeat: true),
+            configuration: configuration
+        )
+        let up = ShortcutMatcher.reduce(
+            state: repeated.state,
+            event: .keyChanged(keyCode: 96, isDown: false, isRepeat: false),
+            configuration: configuration
+        )
+
+        TestSupport.expectEqual(down.emittedEvents, [.addVocabularyTriggered])
+        TestSupport.expectEqual(repeated.emittedEvents, [])
+        TestSupport.expectEqual(up.emittedEvents, [])
+
+        // It must not start, stop or disturb a dictation session.
+        let controller = DictationShortcutSessionController()
+        TestSupport.expectEqual(
+            controller.handle(event: .addVocabularyTriggered, isTranscribing: false, timestamp: 0),
+            nil
+        )
+        TestSupport.expectEqual(controller.activeMode, nil)
+
+        _ = controller.handle(event: .holdActivated, isTranscribing: false, timestamp: 1.0)
+        TestSupport.expectEqual(
+            controller.handle(event: .addVocabularyTriggered, isTranscribing: false, timestamp: 1.1),
+            nil
+        )
+        TestSupport.expectEqual(controller.activeMode, .hold)
+        TestSupport.expectEqual(
+            controller.handle(event: .holdDeactivated, isTranscribing: false, timestamp: 2.0),
+            .stop
+        )
     }
 }

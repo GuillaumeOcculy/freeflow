@@ -163,6 +163,12 @@ struct MenuBarView: View {
 
             Divider()
 
+            Button(appState.addVocabularyShortcut.isDisabled
+                ? "Add Selection to Vocabulary"
+                : "Add Selection to Vocabulary  (\(appState.addVocabularyShortcut.displayName))") {
+                appState.addSelectionToVocabulary()
+            }
+
             Button("Paste Custom Word to Vocabulary") {
                 if appState.pasteWordToVocabulary() != nil {
                     VocabularyNotificationManager.shared.flashCheckmark()
@@ -244,6 +250,50 @@ struct MenuBarView: View {
                         _ = appState.setShortcut(savedCustomShortcut, for: .copyAgain)
                     } label: {
                         if appState.copyAgainShortcut == savedCustomShortcut {
+                            Text("✓ Custom: \(savedCustomShortcut.displayName)")
+                        } else {
+                            Text("  Custom: \(savedCustomShortcut.displayName)")
+                        }
+                    }
+                }
+
+                Divider()
+                Button("Customize…") {
+                    appState.selectedSettingsTab = .general
+                    NotificationCenter.default.post(name: .showSettings, object: nil)
+                }
+            }
+
+            Menu("Add to Vocabulary Shortcut") {
+                Button {
+                    _ = appState.setShortcut(.disabled, for: .addVocabulary)
+                } label: {
+                    if appState.addVocabularyShortcut.isDisabled {
+                        Text("✓ Disabled")
+                    } else {
+                        Text("  Disabled")
+                    }
+                }
+
+                ForEach(ShortcutPreset.allCases) { preset in
+                    Button {
+                        _ = appState.setShortcut(preset.binding, for: .addVocabulary)
+                    } label: {
+                        if appState.addVocabularyShortcut == preset.binding {
+                            Text("✓ \(preset.title)")
+                        } else {
+                            Text("  \(preset.title)")
+                        }
+                    }
+                    .disabled(preset.binding == appState.holdShortcut)
+                }
+
+                if let savedCustomShortcut = appState.savedCustomShortcut(for: .addVocabulary) {
+                    Divider()
+                    Button {
+                        _ = appState.setShortcut(savedCustomShortcut, for: .addVocabulary)
+                    } label: {
+                        if appState.addVocabularyShortcut == savedCustomShortcut {
                             Text("✓ Custom: \(savedCustomShortcut.displayName)")
                         } else {
                             Text("  Custom: \(savedCustomShortcut.displayName)")

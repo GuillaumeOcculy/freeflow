@@ -54,7 +54,7 @@ final class DictationShortcutSessionController {
     ) -> DictationShortcutAction? {
         // Paste Again is handled before this controller runs; if it ever
         // reaches here, treat as a no-op so dictation state is unaffected.
-        if event == .copyAgainTriggered { return nil }
+        if event == .copyAgainTriggered || event == .addVocabularyTriggered { return nil }
 
         guard let mode = activeMode else {
             guard !isTranscribing, event == .holdActivated else { return nil }
@@ -98,7 +98,7 @@ final class DictationShortcutSessionController {
                 reset()
                 return .stop
 
-            case .copyAgainTriggered:
+            case .copyAgainTriggered, .addVocabularyTriggered:
                 return nil
             }
 
@@ -114,7 +114,7 @@ final class DictationShortcutSessionController {
                 // release after `forceToggleMode()` latched while still down.
                 toggleStopArmed = true
                 return nil
-            case .copyAgainTriggered:
+            case .copyAgainTriggered, .addVocabularyTriggered:
                 return nil
             }
         }
