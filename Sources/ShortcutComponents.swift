@@ -19,7 +19,7 @@ struct DictationShortcutEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if showsIntroText {
-                Text("Hold the shortcut to record and release to stop, or tap it to keep recording until you tap again.")
+                Text("Hold the shortcut to record and release to stop, or double-tap it to record hands-free until you tap again.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -587,6 +587,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private var transcribingAudioFileName: String?
     private var contextService: AppContextService
     private var contextCaptureTask: Task<AppContext?, Never>?
+    private var doubleTapWindowWorkItem: DispatchWorkItem?
     private var capturedContext: AppContext?
     private var hasShownScreenshotPermissionAlert = false
     private var audioDeviceObservers: [NSObjectProtocol] = []
@@ -1455,7 +1456,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         guard hasEnabledHoldShortcut else {
             return "No dictation shortcut enabled"
         }
-        return "Hold or tap \(holdShortcut.displayName) to dictate"
+        return "Hold or double-tap \(holdShortcut.displayName) to dictate"
     }
 
     var shortcutStartDelayMilliseconds: Int {
@@ -1657,6 +1658,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
             os_log(.info, log: recordingLog, "Shortcut start fired for mode %{public}@", mode.rawValue)
             scheduleShortcutStart(mode: mode)
         case .stop:
+            cancelDoubleTapWindow()
             cancelPendingShortcutStart()
             guard isRecording else {
                 shortcutSessionController.reset()
@@ -1665,13 +1667,44 @@ final class AppState: ObservableObject, @unchecked Sendable {
             }
             stopAndTranscribe()
         case .switchedToToggle:
+            cancelDoubleTapWindow()
             if isRecording {
                 activeRecordingTriggerMode = .toggle
                 overlayManager.setRecordingTriggerMode(.toggle, animated: true)
             } else if pendingShortcutStartMode != nil {
                 pendingShortcutStartMode = .toggle
             }
+        case .awaitSecondTap:
+            armDoubleTapWindow()
+        case .cancel:
+            cancelActiveShortcutSession()
         }
+    }
+
+    /// A tap keeps recording while we wait to see whether it is the first half
+    /// of a double tap. If nothing follows, the recording is discarded.
+    private func armDoubleTapWindow() {
+        cancelDoubleTapWindow()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.doubleTapWindowWorkItem = nil
+            guard let action = self.shortcutSessionController.handleDoubleTapWindowExpiration() else {
+                return
+            }
+            guard action == .cancel else { return }
+            os_log(.info, log: recordingLog, "Lone tap discarded, no second tap arrived")
+            self.cancelActiveShortcutSession()
+        }
+        doubleTapWindowWorkItem = workItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + DictationShortcutSessionController.doubleTapWindow,
+            execute: workItem
+        )
+    }
+
+    private func cancelDoubleTapWindow() {
+        doubleTapWindowWorkItem?.cancel()
+        doubleTapWindowWorkItem = nil
     }
 
     private func handleEscapeKeyPress() -> Bool {
@@ -1718,7 +1751,14 @@ final class AppState: ObservableObject, @unchecked Sendable {
 
     private func cancelToggleShortcutSession() {
         guard pendingShortcutStartMode == .toggle || activeRecordingTriggerMode == .toggle else { return }
+        cancelActiveShortcutSession()
+    }
 
+    /// Tears down the in-flight dictation session without transcribing it.
+    /// Shared by the Escape key and by a lone tap that never became a double
+    /// tap.
+    private func cancelActiveShortcutSession() {
+        cancelDoubleTapWindow()
         cancelPendingShortcutStart()
         shortcutSessionController.reset()
         activeRecordingTriggerMode = nil

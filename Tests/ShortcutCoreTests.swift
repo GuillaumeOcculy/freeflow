@@ -14,10 +14,12 @@ enum ShortcutCoreTests {
         testConflictDetection()
         testHoldSessionControllerLifecycle()
         testManualSessionControls()
-        testHoldOrToggleShortTapLatchesIntoToggle()
-        testHoldOrToggleSecondTapStopsRecording()
-        testHoldOrToggleLongHoldStopsOnRelease()
-        testHoldOrToggleThresholdBoundaryCountsAsHold()
+        testDoubleTapLatchesIntoToggle()
+        testTapStopsLatchedSession()
+        testLoneTapIsCancelled()
+        testSecondTapAfterWindowDoesNotLatch()
+        testLongHoldStopsOnRelease()
+        testThresholdBoundaryCountsAsHold()
     }
 
     private static func testBareFnHoldLifecycle() {
@@ -345,87 +347,125 @@ enum ShortcutCoreTests {
 
     /// A press released inside the tap threshold keeps recording and latches
     /// into toggle mode instead of stopping.
-    private static func testHoldOrToggleShortTapLatchesIntoToggle() {
+    /// Two quick taps latch into a hands-free session. The first release only
+    /// opens the double-tap window; it must not latch on its own.
+    private static func testDoubleTapLatchesIntoToggle() {
         let controller = DictationShortcutSessionController()
 
         TestSupport.expectEqual(
-            controller.handle(
-                event: .holdActivated,
-                isTranscribing: false,
-                timestamp: 10.0
-            ),
+            controller.handle(event: .holdActivated, isTranscribing: false, timestamp: 10.0),
             .start(.hold)
         )
+        TestSupport.expectEqual(
+            controller.handle(event: .holdDeactivated, isTranscribing: false, timestamp: 10.1),
+            .awaitSecondTap
+        )
+        TestSupport.expectEqual(controller.activeMode, .hold)
 
         TestSupport.expectEqual(
-            controller.handle(
-                event: .holdDeactivated,
-                isTranscribing: false,
-                timestamp: 10.1
-            ),
+            controller.handle(event: .holdActivated, isTranscribing: false, timestamp: 10.2),
             .switchedToToggle
         )
         TestSupport.expectEqual(controller.activeMode, .toggle)
         TestSupport.expect(
-            controller.toggleStopArmed,
-            "A tap latch should arm stop immediately because the key is already up"
+            !controller.toggleStopArmed,
+            "The second tap's own press must not arm its own stop"
         )
+
+        // Its release arms the stop.
+        TestSupport.expectEqual(
+            controller.handle(event: .holdDeactivated, isTranscribing: false, timestamp: 10.25),
+            nil
+        )
+        TestSupport.expect(controller.toggleStopArmed, "The second tap's release arms the stop")
     }
 
-    /// After latching via a tap, the next press of the same binding stops.
-    private static func testHoldOrToggleSecondTapStopsRecording() {
+    /// Once latched, a single tap stops the session.
+    private static func testTapStopsLatchedSession() {
         let controller = DictationShortcutSessionController()
-        _ = controller.handle(
-            event: .holdActivated,
-            isTranscribing: false,
-            timestamp: 10.0
-        )
-        _ = controller.handle(
-            event: .holdDeactivated,
-            isTranscribing: false,
-            timestamp: 10.1
-        )
+        _ = controller.handle(event: .holdActivated, isTranscribing: false, timestamp: 10.0)
+        _ = controller.handle(event: .holdDeactivated, isTranscribing: false, timestamp: 10.1)
+        _ = controller.handle(event: .holdActivated, isTranscribing: false, timestamp: 10.2)
+        _ = controller.handle(event: .holdDeactivated, isTranscribing: false, timestamp: 10.25)
 
         TestSupport.expectEqual(
-            controller.handle(
-                event: .holdActivated,
-                isTranscribing: false,
-                timestamp: 15.0
-            ),
+            controller.handle(event: .holdActivated, isTranscribing: false, timestamp: 20.0),
             .stop
         )
         TestSupport.expectEqual(controller.activeMode, nil)
 
         // Releasing the stopping press must not start anything new.
         TestSupport.expectEqual(
-            controller.handle(
-                event: .holdDeactivated,
-                isTranscribing: false,
-                timestamp: 15.05
-            ),
+            controller.handle(event: .holdDeactivated, isTranscribing: false, timestamp: 20.05),
             nil
         )
         TestSupport.expectEqual(controller.activeMode, nil)
     }
 
+    /// A tap with no second tap is discarded rather than transcribed.
+    private static func testLoneTapIsCancelled() {
+        let controller = DictationShortcutSessionController()
+        _ = controller.handle(event: .holdActivated, isTranscribing: false, timestamp: 10.0)
+        TestSupport.expectEqual(
+            controller.handle(event: .holdDeactivated, isTranscribing: false, timestamp: 10.1),
+            .awaitSecondTap
+        )
+
+        // Still inside the window: nothing yet.
+        TestSupport.expectEqual(
+            controller.handleDoubleTapWindowExpiration(timestamp: 10.2),
+            nil
+        )
+        TestSupport.expectEqual(controller.activeMode, .hold)
+
+        TestSupport.expectEqual(
+            controller.handleDoubleTapWindowExpiration(
+                timestamp: 10.1 + DictationShortcutSessionController.doubleTapWindow
+            ),
+            .cancel
+        )
+        TestSupport.expectEqual(controller.activeMode, nil)
+        TestSupport.expectEqual(controller.awaitingSecondTapSince, nil)
+    }
+
+    /// Expiration is a no-op once the session has latched, so a late timer
+    /// cannot cancel a running hands-free recording.
+    private static func testSecondTapAfterWindowDoesNotLatch() {
+        let controller = DictationShortcutSessionController()
+        _ = controller.handle(event: .holdActivated, isTranscribing: false, timestamp: 10.0)
+        _ = controller.handle(event: .holdDeactivated, isTranscribing: false, timestamp: 10.1)
+
+        // A press arriving past the window is treated as a fresh first press
+        // over the recording still in flight, not as a double tap.
+        let late = 10.1 + DictationShortcutSessionController.doubleTapWindow + 0.05
+        TestSupport.expectEqual(
+            controller.handle(event: .holdActivated, isTranscribing: false, timestamp: late),
+            nil
+        )
+        TestSupport.expectEqual(controller.activeMode, .hold)
+        TestSupport.expectEqual(controller.awaitingSecondTapSince, nil)
+
+        // A late expiration must not cancel it.
+        TestSupport.expectEqual(controller.handleDoubleTapWindowExpiration(timestamp: late), nil)
+        TestSupport.expectEqual(controller.activeMode, .hold)
+
+        // Held past the threshold from that press, so it stops as a hold.
+        TestSupport.expectEqual(
+            controller.handle(event: .holdDeactivated, isTranscribing: false, timestamp: late + 1.0),
+            .stop
+        )
+    }
+
     /// A press held past the threshold stops on release, as a hold.
-    private static func testHoldOrToggleLongHoldStopsOnRelease() {
+    private static func testLongHoldStopsOnRelease() {
         let controller = DictationShortcutSessionController()
 
         TestSupport.expectEqual(
-            controller.handle(
-                event: .holdActivated,
-                isTranscribing: false,
-                timestamp: 10.0
-            ),
+            controller.handle(event: .holdActivated, isTranscribing: false, timestamp: 10.0),
             .start(.hold)
         )
         TestSupport.expectEqual(
-            controller.handle(
-                event: .holdDeactivated,
-                isTranscribing: false,
-                timestamp: 10.9
-            ),
+            controller.handle(event: .holdDeactivated, isTranscribing: false, timestamp: 10.9),
             .stop
         )
         TestSupport.expectEqual(controller.activeMode, nil)
@@ -433,13 +473,9 @@ enum ShortcutCoreTests {
     }
 
     /// A release exactly at the threshold is a hold, not a tap.
-    private static func testHoldOrToggleThresholdBoundaryCountsAsHold() {
+    private static func testThresholdBoundaryCountsAsHold() {
         let controller = DictationShortcutSessionController()
-        _ = controller.handle(
-            event: .holdActivated,
-            isTranscribing: false,
-            timestamp: 0
-        )
+        _ = controller.handle(event: .holdActivated, isTranscribing: false, timestamp: 0)
 
         TestSupport.expectEqual(
             controller.handle(

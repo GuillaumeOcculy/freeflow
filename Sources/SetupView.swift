@@ -561,7 +561,7 @@ struct SetupView: View {
                 .font(.title)
                 .fontWeight(.bold)
 
-            Text("Choose your dictation shortcut.\nHold it while speaking and release to stop, or tap it to keep recording until you tap again.")
+            Text("Choose your dictation shortcut.\nHold it while speaking and release to stop, or double-tap it to record hands-free until you tap again.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -953,7 +953,7 @@ struct SetupView: View {
             VStack(alignment: .leading, spacing: 12) {
                 if appState.hasEnabledHoldShortcut {
                     HowToRow(icon: "keyboard", text: "Hold \(appState.holdShortcut.displayName) to record, release to stop")
-                    HowToRow(icon: "switch.2", text: "Or tap \(appState.holdShortcut.displayName) to keep recording until you tap again")
+                    HowToRow(icon: "switch.2", text: "Or double-tap \(appState.holdShortcut.displayName) to record hands-free, then tap to stop")
                 }
                 if appState.isCommandModeEnabled {
                     switch appState.commandModeStyle {
@@ -1000,7 +1000,7 @@ struct SetupView: View {
         guard appState.hasEnabledHoldShortcut else {
             return "Use Start Dictating from the menu bar"
         }
-        return "Hold or tap \(appState.holdShortcut.displayName)"
+        return "Hold or double-tap \(appState.holdShortcut.displayName)"
     }
 
     private var retryShortcutPrompt: String {
@@ -1196,8 +1196,20 @@ struct SetupView: View {
                     }
                 }
 
-            case .switchedToToggle:
+            case .switchedToToggle, .awaitSecondTap:
                 break
+
+            case .cancel:
+                // A lone tap never became a double tap: drop the take and let
+                // the user try again.
+                testAudioLevelCancellable?.cancel()
+                testAudioLevelCancellable = nil
+                testAudioLevel = 0.0
+                testAudioRecorder?.cancelRecording()
+                testAudioRecorder = nil
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    testPhase = .idle
+                }
             }
         }
 

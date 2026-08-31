@@ -5,6 +5,7 @@ final class SetupTestHotkeyHarness: ObservableObject {
     private let hotkeyManager = HotkeyManager()
     private let sessionController = DictationShortcutSessionController()
     private var pendingStartTask: Task<Void, Never>?
+    private var doubleTapWindowTask: Task<Void, Never>?
     private var pendingStartMode: RecordingTriggerMode?
 
     var isTranscribing = false
@@ -25,6 +26,7 @@ final class SetupTestHotkeyHarness: ObservableObject {
 
     func stop() {
         hotkeyManager.stop()
+        cancelDoubleTapWindow()
         cancelPendingStart()
         onAction = nil
         sessionController.reset()
@@ -32,6 +34,7 @@ final class SetupTestHotkeyHarness: ObservableObject {
     }
 
     func resetSession() {
+        cancelDoubleTapWindow()
         cancelPendingStart()
         sessionController.reset()
     }
@@ -41,18 +44,53 @@ final class SetupTestHotkeyHarness: ObservableObject {
         case .start(let mode):
             scheduleStart(mode: mode, delay: startDelay)
         case .stop:
+            cancelDoubleTapWindow()
             cancelPendingStart()
             DispatchQueue.main.async {
                 self.onAction?(action)
             }
         case .switchedToToggle:
+            cancelDoubleTapWindow()
             if pendingStartMode != nil {
                 pendingStartMode = .toggle
             }
             DispatchQueue.main.async {
                 self.onAction?(action)
             }
+        case .awaitSecondTap:
+            armDoubleTapWindow()
+        case .cancel:
+            cancelPendingStart()
+            DispatchQueue.main.async {
+                self.onAction?(action)
+            }
         }
+    }
+
+    private func armDoubleTapWindow() {
+        cancelDoubleTapWindow()
+        doubleTapWindowTask = Task { [weak self] in
+            do {
+                try await Task.sleep(
+                    nanoseconds: UInt64(DictationShortcutSessionController.doubleTapWindow * 1_000_000_000)
+                )
+            } catch {
+                return
+            }
+
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.doubleTapWindowTask = nil
+                guard let action = self.sessionController.handleDoubleTapWindowExpiration(),
+                      action == .cancel else { return }
+                self.handle(action: action, startDelay: 0)
+            }
+        }
+    }
+
+    private func cancelDoubleTapWindow() {
+        doubleTapWindowTask?.cancel()
+        doubleTapWindowTask = nil
     }
 
     private func scheduleStart(mode: RecordingTriggerMode, delay: TimeInterval) {
