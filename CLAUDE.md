@@ -86,6 +86,16 @@ terms (merge, staging, webhook, deploy, commit). Those must never be francized
 in transcription or post-processing output. See `cleanup-prompt.md` for the
 post-processing prompt design.
 
+**Never force the dictation language.** Output follows what was spoken:
+French in, French out; English in, English out. Both
+`transcription_language` and `output_language` must stay unset. The brief's
+"pass `language: \"fr\"` explicitly" instruction is wrong — do not follow it;
+`cleanup-prompt.md` is right that the language should be auto-detected.
+`output_language` is the more damaging of the two: `applyOutputLanguage`
+appends "Translate the final cleaned text into X, regardless of the original
+spoken language" to the end of the system prompt, which overrides the
+prompt's own NEVER TRANSLATE rule.
+
 ## Build
 
 ```bash
