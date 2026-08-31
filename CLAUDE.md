@@ -21,22 +21,41 @@ bumps, branches and pull requests do not apply — commit to `main` directly.
 
 ## Status
 
-Done — CHANGE 1: `screenRecording` step removed from the setup wizard.
-Remaining — CHANGE 2 (`Sources/AppContextService.swift`), CHANGE 3 (LLM
-payload), CHANGE 4 (remove hard failure). Details in `freeflow-fork-brief.md`,
-along with follow-up improvements.
+Screenshot removal (see `freeflow-fork-brief.md`):
+
+- Done — CHANGE 1: `screenRecording` step removed from the setup wizard.
+- Remaining — CHANGE 2 (`Sources/AppContextService.swift`), CHANGE 3 (LLM
+  payload), CHANGE 4 (remove hard failure), plus the follow-up improvements
+  listed in the brief.
+
+Dictation shortcut (outside the brief, done):
+
+- The separate Hold to Talk and Tap to Toggle bindings were merged into one
+  "Dictation Shortcut". Holding records and releasing stops; double-tapping
+  records hands-free until a single tap stops it. A lone tap is cancelled
+  rather than transcribed.
+- Timing lives in `DictationShortcutSessionController`: `tapThreshold`
+  (250 ms) separates a tap from a hold, `doubleTapWindow` (300 ms) is the gap
+  allowed between the two taps. Both are tuned by feel.
+- The controller stays clock-free so it remains testable without sleeps. The
+  double-tap timer belongs to `AppState` and `SetupTestHotkeyHarness`, which
+  call `handleDoubleTapWindowExpiration(timestamp:)` when it fires.
 
 ## Do not modify
 
 - `Sources/GlobalShortcutBackend.swift`
 - `Sources/ModifierKeyEventState.swift`
 - `Sources/HotkeyManager.swift`
-- `Sources/ShortcutCore/`
 
 The event tap and Fn key detection are correct and fragile.
 `ModifierKeyEventState.swift` contains a non-obvious fix: Fn state from
 `flagsChanged` events is unreliable, so a trusted state is tracked separately.
 Do not refactor it.
+
+`Sources/ShortcutCore/` is *not* protected: it holds the shortcut models, the
+matcher and the session state machine, and it is where dictation behavior is
+meant to change. Keep it free of AppKit and of wall-clock reads so the tests
+stay deterministic — take timestamps as parameters and leave timers to callers.
 
 ## User context
 

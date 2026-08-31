@@ -772,6 +772,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
         if savedCopyAgainCustomShortcut.didUpdateStoredValue {
             persistOptionalShortcut(savedCopyAgainCustomShortcut.binding, key: savedCopyAgainCustomShortcutStorageKey)
         }
+        Self.removeRetiredShortcutStorage()
 
         overlayManager.onStopButtonPressed = { [weak self] in
             DispatchQueue.main.async {
@@ -888,6 +889,22 @@ final class AppState: ObservableObject, @unchecked Sendable {
             didUpdateHoldStoredValue: storedHold.binding == nil || storedHold.didNormalize,
             didUpdateCopyAgainStoredValue: storedCopyAgain.didNormalize
         )
+    }
+
+    /// Keys left behind by the separate Tap to Toggle binding, which was
+    /// folded into the single dictation shortcut. Nothing reads them any more,
+    /// so clear them rather than leaving stale bindings in the preferences.
+    /// `removeObject` is a no-op when a key is absent, so this is safe to run
+    /// on every launch and needs no migration flag.
+    private static let retiredShortcutStorageKeys = [
+        "toggle_shortcut",
+        "saved_toggle_custom_shortcut"
+    ]
+
+    private static func removeRetiredShortcutStorage() {
+        for key in retiredShortcutStorageKeys where UserDefaults.standard.object(forKey: key) != nil {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
     }
 
     private static func loadShortcut(forKey key: String) -> StoredShortcutLoadResult {
