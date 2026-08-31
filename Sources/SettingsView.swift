@@ -1443,15 +1443,6 @@ struct GeneralSettingsView: View {
                     appState.openAccessibilitySettings()
                 }
             )
-
-            permissionRow(
-                title: "Screen Recording",
-                icon: "camera.viewfinder",
-                granted: appState.hasScreenRecordingPermission,
-                action: {
-                    appState.requestScreenCapturePermission()
-                }
-            )
         }
     }
 
@@ -1910,45 +1901,6 @@ struct PromptsSettingsView: View {
                         appState.customContextPromptLastModified = ""
                     }
                     .font(.caption)
-                }
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Screenshot Resolution")
-                    .font(.caption.weight(.semibold))
-
-                Text("Controls the maximum image dimension sent for context inference.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Picker("", selection: $appState.contextScreenshotMaxDimension) {
-                    ForEach(AppState.contextScreenshotDimensionOptions, id: \.self) { dimension in
-                        Text("\(dimension) px").tag(dimension)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .accessibilityLabel("Screenshot Resolution")
-
-                HStack {
-                    if appState.contextScreenshotMaxDimension == AppState.defaultContextScreenshotMaxDimension {
-                        Label("Using default", systemImage: "checkmark.circle")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Label("Using custom value", systemImage: "pencil")
-                            .font(.caption)
-                            .foregroundStyle(.blue)
-                    }
-                    Spacer()
-                    if appState.contextScreenshotMaxDimension != AppState.defaultContextScreenshotMaxDimension {
-                        Button("Reset to Default") {
-                            appState.contextScreenshotMaxDimension = AppState.defaultContextScreenshotMaxDimension
-                        }
-                        .font(.caption)
-                    }
                 }
             }
 

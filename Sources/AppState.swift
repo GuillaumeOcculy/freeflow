@@ -4,7 +4,6 @@ import AppKit
 import AVFoundation
 import ServiceManagement
 import ApplicationServices
-import ScreenCaptureKit
 import Carbon
 import os.log
 private let recordingLog = OSLog(subsystem: "com.zachlatta.freeflow", category: "Recording")
@@ -218,7 +217,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private let instructionExecutionGuardEnabledStorageKey = "instruction_execution_guard_enabled"
     private let customSystemPromptLastModifiedStorageKey = "custom_system_prompt_last_modified"
     private let customContextPromptLastModifiedStorageKey = "custom_context_prompt_last_modified"
-    private let contextScreenshotMaxDimensionStorageKey = "context_screenshot_max_dimension"
     private let shortcutStartDelayStorageKey = "shortcut_start_delay"
     private let preserveClipboardStorageKey = "preserve_clipboard"
     private let preserveExactWordingStorageKey = "preserve_exact_wording"
@@ -238,8 +236,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private let pressEnterAfterPasteDelay: TimeInterval = 0.08
     private let clipboardRestoreDelay: TimeInterval = 1.0
     let maxPipelineHistoryCount = 20
-    static let defaultContextScreenshotMaxDimension = Int(AppContextService.defaultScreenshotMaxDimension)
-    static let contextScreenshotDimensionOptions = [1024, 768, 640, 512]
     static let defaultTranscriptionModel = "whisper-large-v3"
     static let transcriptionLanguageOptions: [(code: String, name: String)] = [
         ("", "Auto-detect"),
@@ -425,17 +421,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
         }
     }
 
-    @Published var contextScreenshotMaxDimension: Int {
-        didSet {
-            let normalizedDimension = Self.normalizedContextScreenshotMaxDimension(contextScreenshotMaxDimension)
-            if normalizedDimension != contextScreenshotMaxDimension {
-                contextScreenshotMaxDimension = normalizedDimension
-            }
-            UserDefaults.standard.set(contextScreenshotMaxDimension, forKey: contextScreenshotMaxDimensionStorageKey)
-            rebuildContextService()
-        }
-    }
-
     @Published var customSystemPromptLastModified: String {
         didSet {
             UserDefaults.standard.set(customSystemPromptLastModified, forKey: customSystemPromptLastModifiedStorageKey)
@@ -562,7 +547,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
     @Published var lastContextWindowTitle: String = ""
     @Published var lastContextSelectedText: String = ""
     @Published var lastContextLLMPrompt: String = ""
-    @Published var hasScreenRecordingPermission = false
     @Published var launchAtLogin: Bool {
         didSet { setLaunchAtLogin(launchAtLogin) }
     }
@@ -587,7 +571,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
     private var contextCaptureTask: Task<AppContext?, Never>?
     private var doubleTapWindowWorkItem: DispatchWorkItem?
     private var capturedContext: AppContext?
-    private var hasShownScreenshotPermissionAlert = false
     private var audioDeviceObservers: [NSObjectProtocol] = []
     private var needsMicrophoneRefreshAfterRecording = false
     private let pipelineHistoryStore = PipelineHistoryStore()
@@ -649,10 +632,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
         let customSystemPromptLastModified = UserDefaults.standard.string(forKey: customSystemPromptLastModifiedStorageKey) ?? ""
         let customContextPromptLastModified = UserDefaults.standard.string(forKey: customContextPromptLastModifiedStorageKey) ?? ""
         let outputLanguage = UserDefaults.standard.string(forKey: outputLanguageStorageKey) ?? ""
-        let storedContextScreenshotMaxDimension = UserDefaults.standard.object(forKey: contextScreenshotMaxDimensionStorageKey) != nil
-            ? UserDefaults.standard.integer(forKey: contextScreenshotMaxDimensionStorageKey)
-            : Self.defaultContextScreenshotMaxDimension
-        let contextScreenshotMaxDimension = Self.normalizedContextScreenshotMaxDimension(storedContextScreenshotMaxDimension)
         let shortcutStartDelay = max(0, UserDefaults.standard.double(forKey: shortcutStartDelayStorageKey))
         let isCommandModeEnabled = UserDefaults.standard.object(forKey: commandModeEnabledStorageKey) == nil
             ? false
@@ -691,7 +670,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
         }
 
         let initialAccessibility = AXIsProcessTrusted()
-        let initialScreenCapturePermission = CGPreflightScreenCaptureAccess()
         var removedAudioFileNames: [String] = []
         do {
             removedAudioFileNames = try pipelineHistoryStore.trim(to: maxPipelineHistoryCount)
@@ -709,8 +687,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
             apiKey: apiKey,
             baseURL: apiBaseURL,
             customContextPrompt: customContextPrompt,
-            contextModel: contextModel,
-            contextScreenshotMaxDimension: contextScreenshotMaxDimension
+            contextModel: contextModel
         )
         self.hasCompletedSetup = hasCompletedSetup
         self.apiKey = apiKey
@@ -733,7 +710,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
         self.customSystemPrompt = customSystemPrompt
         self.customContextPrompt = customContextPrompt
         self.instructionExecutionGuardEnabled = instructionExecutionGuardEnabled
-        self.contextScreenshotMaxDimension = contextScreenshotMaxDimension
         self.customSystemPromptLastModified = customSystemPromptLastModified
         self.customContextPromptLastModified = customContextPromptLastModified
         self.outputLanguage = outputLanguage
@@ -750,7 +726,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
         self.voiceMacros = initialMacros
         self.pipelineHistory = savedHistory
         self.hasAccessibility = initialAccessibility
-        self.hasScreenRecordingPermission = initialScreenCapturePermission
         self.launchAtLogin = SMAppService.mainApp.status == .enabled
         self.selectedMicrophoneID = selectedMicrophoneID
         self.precomputeMacros()
@@ -935,25 +910,17 @@ final class AppState: ObservableObject, @unchecked Sendable {
         )
     }
 
-    static func normalizedContextScreenshotMaxDimension(_ value: Int) -> Int {
-        contextScreenshotDimensionOptions.contains(value)
-            ? value
-            : defaultContextScreenshotMaxDimension
-    }
-
     static func makeAppContextService(
         apiKey: String,
         baseURL: String,
         customContextPrompt: String,
-        contextModel: String,
-        contextScreenshotMaxDimension: Int
+        contextModel: String
     ) -> AppContextService {
         AppContextService(
             apiKey: apiKey,
             baseURL: baseURL,
             customContextPrompt: customContextPrompt,
-            contextModel: contextModel,
-            screenshotMaxDimension: CGFloat(normalizedContextScreenshotMaxDimension(contextScreenshotMaxDimension))
+            contextModel: contextModel
         )
     }
 
@@ -962,8 +929,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
             apiKey: apiKey,
             baseURL: apiBaseURL,
             customContextPrompt: customContextPrompt,
-            contextModel: contextModel,
-            contextScreenshotMaxDimension: contextScreenshotMaxDimension
+            contextModel: contextModel
         )
     }
 
@@ -1285,16 +1251,14 @@ final class AppState: ObservableObject, @unchecked Sendable {
         accessibilityTimer?.invalidate()
         accessibilityTimer = nil
         hasAccessibility = AXIsProcessTrusted()
-        hasScreenRecordingPermission = hasScreenCapturePermission()
-        if hasAccessibility && hasScreenRecordingPermission {
+        if hasAccessibility {
             return
         }
         accessibilityTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.hasAccessibility = AXIsProcessTrusted()
-                self.hasScreenRecordingPermission = self.hasScreenCapturePermission()
-                if self.hasAccessibility && self.hasScreenRecordingPermission {
+                if self.hasAccessibility {
                     self.accessibilityTimer?.invalidate()
                     self.accessibilityTimer = nil
                 }
@@ -1346,31 +1310,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
                 completion(false)
             }
         }
-    }
-
-    func hasScreenCapturePermission() -> Bool {
-        CGPreflightScreenCaptureAccess()
-    }
-
-    func requestScreenCapturePermission() {
-        // ScreenCaptureKit triggers the "Screen & System Audio Recording"
-        // permission dialog on macOS Sequoia+, correctly identifying the
-        // running app (unlike the legacy CGWindowListCreateImage path).
-        SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: false) { [weak self] _, _ in
-            DispatchQueue.main.async {
-                let granted = CGPreflightScreenCaptureAccess()
-                self?.hasScreenRecordingPermission = granted
-                if !granted {
-                    self?.openScreenCaptureSettings()
-                }
-            }
-        }
-
-        hasScreenRecordingPermission = CGPreflightScreenCaptureAccess()
-    }
-
-    func openScreenCaptureSettings() {
-        openPrivacySettingsPane("Privacy_ScreenCapture")
     }
 
     private func openPrivacySettingsPane(_ pane: String) {
@@ -1991,35 +1930,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
             manualCommandRequested: manualCommandRequested
         ) else { return false }
 
-        if resolvedIntent.isCommandMode {
-            guard ensureScreenCaptureAccess() else { return false }
-            if let startedAt {
-                os_log(.info, log: recordingLog, "screen capture check passed: %.3fms", (CFAbsoluteTimeGetCurrent() - startedAt) * 1000)
-            }
-        } else {
-            hasScreenRecordingPermission = hasScreenCapturePermission()
-        }
-
         currentSessionIntent = resolvedIntent
         overlayManager.setRecordingTriggerMode(triggerMode, animated: false)
-        return true
-    }
-
-    private func ensureScreenCaptureAccess() -> Bool {
-        let granted = hasScreenCapturePermission()
-        hasScreenRecordingPermission = granted
-        guard granted else {
-            let message = "Screen recording permission not granted. Enable in System Settings > Privacy & Security > Screen Recording."
-            errorMessage = message
-            statusText = "Screenshot Required"
-            activeRecordingTriggerMode = nil
-            currentSessionIntent = .dictation
-            shortcutSessionController.reset()
-            playAlertSound(named: "Basso")
-            showScreenshotPermissionAlert(message: message)
-            return false
-        }
-
         return true
     }
 
@@ -2155,7 +2067,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
 
         isRecording = true
         statusText = "Starting..."
-        hasShownScreenshotPermissionAlert = false
 
         // Show initializing dots only if engine takes longer than 0.2s to start
         var overlayShown = false
@@ -3007,72 +2918,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func handleScreenshotCaptureIssue(_ message: String?) {
-        guard let message, !message.isEmpty else {
-            hasShownScreenshotPermissionAlert = false
-            return
-        }
-
-        os_log(.error, "Screenshot capture issue: %{public}@", message)
-
-        if isScreenCapturePermissionError(message) && !hasShownScreenshotPermissionAlert {
-            hasScreenRecordingPermission = false
-            guard currentSessionIntent.isCommandMode else { return }
-            errorMessage = message
-            hasShownScreenshotPermissionAlert = true
-
-            // Permission errors are fatal — stop recording
-            tearDownRealtimeService()
-            audioRecorder.cancelRecording()
-            audioLevelCancellable?.cancel()
-            audioLevelCancellable = nil
-            contextCaptureTask?.cancel()
-            contextCaptureTask = nil
-            capturedContext = nil
-            isRecording = false
-            restoreAudioInterruptionIfNeeded()
-            shortcutSessionController.reset()
-            activeRecordingTriggerMode = nil
-            endCriticalDictationActivity()
-            statusText = "Screenshot Required"
-            overlayManager.dismiss()
-
-            playAlertSound(named: "Basso")
-            showScreenshotPermissionAlert(message: message)
-        }
-        // Non-permission errors (transient failures) — continue recording without context
-    }
-
-    private func isScreenCapturePermissionError(_ message: String) -> Bool {
-        let lowered = message.lowercased()
-        return lowered.contains("screen recording permission not granted")
-            || lowered.contains("requires screen recording permission")
-    }
-
-    private func showScreenshotPermissionAlert(message: String) {
-        let alert = NSAlert()
-        alert.messageText = "Screen Recording Permission Required"
-        alert.informativeText = "\(message)\n\n\(AppName.displayName) requires Screen Recording permission to capture screenshots for context-aware transcription.\n\nGo to System Settings > Privacy & Security > Screen Recording and enable \(AppName.displayName)."
-        alert.alertStyle = .critical
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Dismiss")
-        alert.icon = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: nil)
-
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            openScreenCaptureSettings()
-        }
-    }
-
-    private func showScreenshotCaptureErrorAlert(message: String) {
-        let alert = NSAlert()
-        alert.messageText = "Screenshot Capture Failed"
-        alert.informativeText = "\(message)\n\nA screenshot is required for context-aware transcription. Recording has been stopped."
-        alert.alertStyle = .critical
-        alert.addButton(withTitle: "Dismiss")
-        alert.icon = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: nil)
-        _ = alert.runModal()
-    }
 
     func toggleDebugOverlay() {
         if isDebugOverlayActive {
