@@ -21,12 +21,34 @@ bumps, branches and pull requests do not apply — commit to `main` directly.
 
 ## Status
 
-Screenshot removal (see `freeflow-fork-brief.md`):
+Screenshot removal (see `freeflow-fork-brief.md`) — **done**, CHANGE 1 to 4.
+Verified by hand: FreeFlow no longer appears under System Settings > Privacy &
+Security > Screen Recording, and dictation works end to end.
 
-- Done — CHANGE 1: `screenRecording` step removed from the setup wizard.
-- Remaining — CHANGE 2 (`Sources/AppContextService.swift`), CHANGE 3 (LLM
-  payload), CHANGE 4 (remove hard failure), plus the follow-up improvements
-  listed in the brief.
+App context now comes from Accessibility APIs only: app name, bundle id,
+focused window title, selected text. Nothing captures, sends or stores an
+image, and context collection can no longer block a recording — including in
+Edit Mode, which used to refuse to start without the permission.
+
+Notes for anyone re-reading the brief:
+
+- CHANGE 2 and 3 landed as one commit. The `image_url` block lives in the same
+  file as the capture, so removing `AppContext`'s screenshot fields forces the
+  payload change; splitting them would not have compiled.
+- The brief underestimated the reach. The screenshot was also persisted in
+  `PipelineHistoryItem` and its Core Data entity, and rendered in the debug
+  panel and the test-case export. All of that is gone; lightweight migration
+  handles the dropped columns.
+- Removing the `SCShareableContent` call is what actually delists the app.
+  It never captured anything — it existed only to register FreeFlow in the
+  Screen Recording list.
+
+Remaining from the brief: the four "After it works" improvements — cleanup
+prompt, vocabulary seeding, `language: "fr"` check, optional local WhisperKit.
+One caveat found while reading it: the cleanup prompt's rule "convert spoken
+numbers to digits above ten, keep small numbers as words" would undo the
+current behavior of writing dictated "1, 2, 3" as digits. Adjust that line
+before applying the prompt.
 
 Dictation shortcut (outside the brief, done):
 
