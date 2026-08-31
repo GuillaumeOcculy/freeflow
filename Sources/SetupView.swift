@@ -61,7 +61,6 @@ struct SetupView: View {
         case micPermission
         case accessibility
         case holdShortcut
-        case toggleShortcut
         case copyAgainShortcut
         case commandMode
         case vocabulary
@@ -97,17 +96,15 @@ struct SetupView: View {
     @State private var testAudioLevelCancellable: AnyCancellable? = nil
     @State private var testMicPulsing = false
     @State private var holdShortcutValidationMessage: String?
-    @State private var toggleShortcutValidationMessage: String?
     @State private var copyAgainShortcutValidationMessage: String?
     @State private var isCapturingHoldShortcut = false
-    @State private var isCapturingToggleShortcut = false
     @State private var isCapturingCopyAgainShortcut = false
     @StateObject private var testHotkeyHarness = SetupTestHotkeyHarness()
     @AppStorage("use_compact_overlay") private var useCompactOverlay = true
 
     private let totalSteps: [SetupStep] = SetupStep.allCases
     private var isCapturingShortcut: Bool {
-        isCapturingHoldShortcut || isCapturingToggleShortcut || isCapturingCopyAgainShortcut
+        isCapturingHoldShortcut || isCapturingCopyAgainShortcut
     }
 
     var body: some View {
@@ -238,8 +235,6 @@ struct SetupView: View {
             accessibilityStep
         case .holdShortcut:
             holdShortcutStep
-        case .toggleShortcut:
-            toggleShortcutStep
         case .copyAgainShortcut:
             copyAgainShortcutStep
         case .commandMode:
@@ -562,11 +557,11 @@ struct SetupView: View {
                 .font(.system(size: 60))
                 .foregroundStyle(.blue)
 
-            Text("Hold to Talk Shortcut")
+            Text("Dictation Shortcut")
                 .font(.title)
                 .fontWeight(.bold)
 
-            Text("Choose the shortcut you want to hold while speaking.\nRelease it to stop unless you latch into tap mode later, or disable hold-to-talk entirely.")
+            Text("Choose your dictation shortcut.\nHold it while speaking and release to stop, or tap it to keep recording until you tap again.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -583,42 +578,6 @@ struct SetupView: View {
                 .padding(.top, 10)
 
             if appState.holdShortcut.usesFnKey {
-                Text("Tip: If Fn opens Emoji picker, go to System Settings > Keyboard and change \"Press fn key to\" to \"Do Nothing\".")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .multilineTextAlignment(.center)
-            }
-
-        }
-    }
-
-    var toggleShortcutStep: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "switch.2")
-                .font(.system(size: 60))
-                .foregroundStyle(.blue)
-
-            Text("Tap to Toggle Shortcut")
-                .font(.title)
-                .fontWeight(.bold)
-
-            Text("Choose the shortcut you want to tap once to start dictating and tap again to stop.\nIf this shortcut becomes active while you are holding the hold shortcut, \(AppName.displayName) latches into tap mode. You can also disable tap-to-toggle entirely.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            ShortcutRoleSection(
-                role: .toggle,
-                selection: appState.toggleShortcut,
-                validationMessage: toggleShortcutValidationMessage,
-                isCapturing: $isCapturingToggleShortcut,
-                onSelect: { binding in
-                    toggleShortcutValidationMessage = appState.setShortcut(binding, for: .toggle)
-                }
-            )
-                .padding(.top, 10)
-
-            if appState.toggleShortcut.usesFnKey {
                 Text("Tip: If Fn opens Emoji picker, go to System Settings > Keyboard and change \"Press fn key to\" to \"Do Nothing\".")
                     .font(.caption)
                     .foregroundStyle(.orange)
@@ -993,13 +952,8 @@ struct SetupView: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 if appState.hasEnabledHoldShortcut {
-                    HowToRow(icon: "keyboard", text: "Hold \(appState.holdShortcut.displayName) to record")
-                }
-                if appState.hasEnabledToggleShortcut {
-                    HowToRow(icon: "switch.2", text: "Tap \(appState.toggleShortcut.displayName) to start and stop")
-                }
-                if appState.hasEnabledHoldShortcut && appState.hasEnabledToggleShortcut {
-                    HowToRow(icon: "arrow.triangle.branch", text: "While holding, press the toggle shortcut to latch on")
+                    HowToRow(icon: "keyboard", text: "Hold \(appState.holdShortcut.displayName) to record, release to stop")
+                    HowToRow(icon: "switch.2", text: "Or tap \(appState.holdShortcut.displayName) to keep recording until you tap again")
                 }
                 if appState.isCommandModeEnabled {
                     switch appState.commandModeStyle {
@@ -1043,16 +997,10 @@ struct SetupView: View {
     }
 
     private var testShortcutPrompt: String {
-        switch (appState.hasEnabledHoldShortcut, appState.hasEnabledToggleShortcut) {
-        case (true, true):
-            return "Hold \(appState.holdShortcut.displayName) or tap \(appState.toggleShortcut.displayName)"
-        case (true, false):
-            return "Hold \(appState.holdShortcut.displayName)"
-        case (false, true):
-            return "Tap \(appState.toggleShortcut.displayName)"
-        case (false, false):
+        guard appState.hasEnabledHoldShortcut else {
             return "Use Start Dictating from the menu bar"
         }
+        return "Hold or tap \(appState.holdShortcut.displayName)"
     }
 
     private var retryShortcutPrompt: String {
@@ -1254,10 +1202,10 @@ struct SetupView: View {
         }
 
         do {
-            try testHotkeyHarness.start(configuration: ShortcutConfiguration(
-                hold: appState.holdShortcut,
-                toggle: appState.toggleShortcut
-            ), startDelay: appState.shortcutStartDelay)
+            try testHotkeyHarness.start(
+                configuration: ShortcutConfiguration(hold: appState.holdShortcut),
+                startDelay: appState.shortcutStartDelay
+            )
         } catch {
             testError = error.localizedDescription
             testPhase = .done

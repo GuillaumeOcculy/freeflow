@@ -9,7 +9,6 @@ struct DictationShortcutEditor: View {
 
     @State private var activeCaptureRole: ShortcutRole?
     @State private var holdValidationMessage: String?
-    @State private var toggleValidationMessage: String?
     @State private var copyAgainValidationMessage: String?
 
     init(showsIntroText: Bool = true, onCaptureStateChange: ((Bool) -> Void)? = nil) {
@@ -20,13 +19,13 @@ struct DictationShortcutEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if showsIntroText {
-                Text("Hold to record, tap to start and stop, and press the toggle shortcut while holding to latch into tap mode. You can disable either workflow or turn both shortcuts off.")
+                Text("Hold the shortcut to record and release to stop, or tap it to keep recording until you tap again.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            if appState.holdShortcut.isDisabled && appState.toggleShortcut.isDisabled {
-                Label("Both dictation shortcuts are disabled.", systemImage: "exclamationmark.triangle.fill")
+            if appState.holdShortcut.isDisabled {
+                Label("The dictation shortcut is disabled.", systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
@@ -41,19 +40,6 @@ struct DictationShortcutEditor: View {
                 ),
                 onSelect: { binding in
                     holdValidationMessage = appState.setShortcut(binding, for: .hold)
-                }
-            )
-
-            ShortcutRoleSection(
-                role: .toggle,
-                selection: appState.toggleShortcut,
-                validationMessage: toggleValidationMessage,
-                isCapturing: Binding(
-                    get: { activeCaptureRole == .toggle },
-                    set: { activeCaptureRole = $0 ? .toggle : nil }
-                ),
-                onSelect: { binding in
-                    toggleValidationMessage = appState.setShortcut(binding, for: .toggle)
                 }
             )
 

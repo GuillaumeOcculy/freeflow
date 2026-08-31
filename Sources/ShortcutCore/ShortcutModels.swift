@@ -54,13 +54,13 @@ enum RecordingTriggerMode: String, Codable {
 
 enum ShortcutRole {
     case hold
-    case toggle
     case copyAgain
 
+    /// The dictation binding is unified: it both holds and taps, so it is no
+    /// longer named after one of the two gestures.
     var title: String {
         switch self {
-        case .hold: return "Hold to Talk"
-        case .toggle: return "Tap to Toggle"
+        case .hold: return "Dictation Shortcut"
         case .copyAgain: return "Paste Again"
         }
     }
@@ -69,30 +69,25 @@ enum ShortcutRole {
 enum ShortcutEvent: Equatable {
     case holdActivated
     case holdDeactivated
-    case toggleActivated
-    case toggleDeactivated
     case copyAgainTriggered
 }
 
 struct ShortcutConfiguration: Equatable {
     let hold: ShortcutBinding
-    let toggle: ShortcutBinding
     let copyAgain: ShortcutBinding
     let permittedAdditionalExactMatchModifiers: ShortcutModifiers
 
     init(
         hold: ShortcutBinding,
-        toggle: ShortcutBinding,
         copyAgain: ShortcutBinding = .disabled,
         permittedAdditionalExactMatchModifiers: ShortcutModifiers = []
     ) {
         self.hold = hold
-        self.toggle = toggle
         self.copyAgain = copyAgain
         self.permittedAdditionalExactMatchModifiers = permittedAdditionalExactMatchModifiers
     }
 
-    static let disabled = ShortcutConfiguration(hold: .disabled, toggle: .disabled, copyAgain: .disabled)
+    static let disabled = ShortcutConfiguration(hold: .disabled, copyAgain: .disabled)
 }
 
 enum ShortcutPreset: String, CaseIterable, Identifiable, Codable {
@@ -342,7 +337,6 @@ struct ShortcutBinding: Codable, Hashable, Identifiable, Equatable {
         preset: nil
     )
     static let defaultHold = ShortcutPreset.fnKey.binding
-    static let defaultToggle = ShortcutPreset.fnKey.binding.withAddedModifiers(.command)
 
     static let modifierKeyCodes: Set<UInt16> = [54, 55, 56, 58, 59, 60, 61, 62, 63]
 

@@ -4,7 +4,7 @@ final class HotkeyManager {
     private let backend = GlobalShortcutBackend()
     private var configuration = ShortcutConfiguration(
         hold: .defaultHold,
-        toggle: .defaultToggle
+        copyAgain: .disabled
     )
     private var inputState = ShortcutInputState()
 
