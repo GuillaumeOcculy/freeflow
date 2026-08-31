@@ -557,8 +557,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
     @Published var lastPostProcessingPrompt = ""
     @Published var lastContextSummary = ""
     @Published var lastPostProcessingStatus = ""
-    @Published var lastContextScreenshotDataURL: String? = nil
-    @Published var lastContextScreenshotStatus = "No screenshot"
     @Published var lastContextAppName: String = ""
     @Published var lastContextBundleIdentifier: String = ""
     @Published var lastContextWindowTitle: String = ""
@@ -1167,10 +1165,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
             selectedText: nil,
             currentActivity: item.contextSummary,
             contextSystemPrompt: item.contextSystemPrompt,
-            contextPrompt: item.contextPrompt,
-            screenshotDataURL: item.contextScreenshotDataURL,
-            screenshotMimeType: item.contextScreenshotDataURL != nil ? "image/jpeg" : nil,
-            screenshotError: nil
+            contextPrompt: item.contextPrompt
         )
 
         let postProcessingService = PostProcessingService(
@@ -1231,8 +1226,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
                         contextSummary: item.contextSummary,
                         contextSystemPrompt: item.contextSystemPrompt,
                         contextPrompt: item.contextPrompt,
-                        contextScreenshotDataURL: item.contextScreenshotDataURL,
-                        contextScreenshotStatus: item.contextScreenshotStatus,
                         postProcessingStatus: processingStatus,
                         debugStatus: "Retried",
                         customVocabulary: item.customVocabulary,
@@ -1270,8 +1263,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
                         contextSummary: item.contextSummary,
                         contextSystemPrompt: item.contextSystemPrompt,
                         contextPrompt: item.contextPrompt,
-                        contextScreenshotDataURL: item.contextScreenshotDataURL,
-                        contextScreenshotStatus: item.contextScreenshotStatus,
                         postProcessingStatus: "Error: \(error.localizedDescription)",
                         debugStatus: "Retry failed",
                         customVocabulary: item.customVocabulary,
@@ -2613,8 +2604,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
         lastContextSummary = ""
         lastPostProcessingStatus = ""
         lastPostProcessingPrompt = ""
-        lastContextScreenshotDataURL = nil
-        lastContextScreenshotStatus = "No screenshot"
         isRecording = false
         restoreAudioInterruptionIfNeeded()
         isTranscribing = true
@@ -2725,9 +2714,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
                     await MainActor.run {
                         guard self.isTranscribing else { return }
                         self.lastContextSummary = appContext.contextSummary
-                        self.lastContextScreenshotDataURL = appContext.screenshotDataURL
-                        self.lastContextScreenshotStatus = appContext.screenshotError
-                            ?? "available (\(appContext.screenshotMimeType ?? "image"))"
                         self.lastContextAppName = appContext.appName ?? ""
                         self.lastContextBundleIdentifier = appContext.bundleIdentifier ?? ""
                         self.lastContextWindowTitle = appContext.windowTitle ?? ""
@@ -2838,9 +2824,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
                         self.lastContextSummary = ""
                         self.lastPostProcessingStatus = "Error: \(error.localizedDescription)"
                         self.lastPostProcessingPrompt = ""
-                        self.lastContextScreenshotDataURL = resolvedContext.screenshotDataURL
-                        self.lastContextScreenshotStatus = resolvedContext.screenshotError
-                            ?? "available (\(resolvedContext.screenshotMimeType ?? "image"))"
                         self.recordPipelineHistoryEntry(
                             rawTranscript: "",
                             postProcessedTranscript: "",
@@ -2887,9 +2870,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
             contextSummary: context.contextSummary,
             contextSystemPrompt: context.contextSystemPrompt,
             contextPrompt: context.contextPrompt,
-            contextScreenshotDataURL: context.screenshotDataURL,
-            contextScreenshotStatus: context.screenshotError
-                ?? "available (\(context.screenshotMimeType ?? "image"))",
             postProcessingStatus: processingStatus,
             debugStatus: debugStatusMessage,
             customVocabulary: customVocabulary,
@@ -2947,8 +2927,6 @@ final class AppState: ObservableObject, @unchecked Sendable {
         capturedContext = nil
         lastContextSummary = "Collecting app context..."
         lastPostProcessingStatus = ""
-        lastContextScreenshotDataURL = nil
-        lastContextScreenshotStatus = "Collecting screenshot..."
 
         contextCaptureTask = Task { [weak self] in
             guard let self else { return nil }
@@ -2956,16 +2934,12 @@ final class AppState: ObservableObject, @unchecked Sendable {
             await MainActor.run {
                 self.capturedContext = context
                 self.lastContextSummary = context.contextSummary
-                self.lastContextScreenshotDataURL = context.screenshotDataURL
-                self.lastContextScreenshotStatus = context.screenshotError
-                    ?? "available (\(context.screenshotMimeType ?? "image"))"
                 self.lastContextAppName = context.appName ?? ""
                 self.lastContextBundleIdentifier = context.bundleIdentifier ?? ""
                 self.lastContextWindowTitle = context.windowTitle ?? ""
                 self.lastContextSelectedText = context.selectedText ?? ""
                 self.lastContextLLMPrompt = context.contextPrompt ?? ""
                 self.lastPostProcessingStatus = "App context captured"
-                self.handleScreenshotCaptureIssue(context.screenshotError)
             }
             return context
         }
@@ -2981,10 +2955,7 @@ final class AppState: ObservableObject, @unchecked Sendable {
             selectedText: nil,
             currentActivity: "Could not refresh app context at stop time; using text-only post-processing.",
             contextSystemPrompt: resolvedContextSystemPrompt(),
-            contextPrompt: nil,
-            screenshotDataURL: nil,
-            screenshotMimeType: nil,
-            screenshotError: "No app context captured before stop"
+            contextPrompt: nil
         )
     }
 

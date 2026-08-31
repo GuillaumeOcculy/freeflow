@@ -201,8 +201,6 @@ final class PipelineHistoryStore {
                 entity.contextSummary = item.contextSummary
                 entity.contextSystemPrompt = item.contextSystemPrompt
                 entity.contextPrompt = item.contextPrompt
-                entity.contextScreenshotDataURL = item.contextScreenshotDataURL
-                entity.contextScreenshotStatus = item.contextScreenshotStatus
                 entity.postProcessingStatus = item.postProcessingStatus
                 entity.debugStatus = item.debugStatus
                 entity.customVocabulary = item.customVocabulary
@@ -279,8 +277,6 @@ final class PipelineHistoryStore {
             contextSummary: entity.contextSummary ?? "",
             contextSystemPrompt: entity.contextSystemPrompt,
             contextPrompt: entity.contextPrompt,
-            contextScreenshotDataURL: entity.contextScreenshotDataURL,
-            contextScreenshotStatus: entity.contextScreenshotStatus ?? "available (image)",
             postProcessingStatus: entity.postProcessingStatus ?? "",
             debugStatus: entity.debugStatus ?? "",
             customVocabulary: entity.customVocabulary ?? "",
@@ -311,8 +307,6 @@ final class PipelineHistoryStore {
             makeAttribute(name: "contextSummary", type: .stringAttributeType, isOptional: false),
             makeAttribute(name: "contextSystemPrompt", type: .stringAttributeType, isOptional: true),
             makeAttribute(name: "contextPrompt", type: .stringAttributeType, isOptional: true),
-            makeAttribute(name: "contextScreenshotDataURL", type: .stringAttributeType, isOptional: true),
-            makeAttribute(name: "contextScreenshotStatus", type: .stringAttributeType, isOptional: false),
             makeAttribute(name: "postProcessingStatus", type: .stringAttributeType, isOptional: false),
             makeAttribute(name: "debugStatus", type: .stringAttributeType, isOptional: false),
             makeAttribute(name: "customVocabulary", type: .stringAttributeType, isOptional: false),
@@ -355,8 +349,6 @@ final class PipelineHistoryEntry: NSManagedObject {
     @NSManaged var contextSummary: String?
     @NSManaged var contextSystemPrompt: String?
     @NSManaged var contextPrompt: String?
-    @NSManaged var contextScreenshotDataURL: String?
-    @NSManaged var contextScreenshotStatus: String?
     @NSManaged var postProcessingStatus: String?
     @NSManaged var debugStatus: String?
     @NSManaged var customVocabulary: String?

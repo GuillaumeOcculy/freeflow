@@ -238,7 +238,7 @@ struct ProviderSettingsFields: View {
 
             ModelDropdownView(
                 title: "Context Model",
-                subtitle: "Used for context inference, with a text-only retry when screenshot analysis fails. Screenshot analysis requires a model that accepts image input.",
+                subtitle: "Used for context inference from app and window metadata.",
                 predefinedModels: ModelConfiguration.visionModels,
                 defaultModel: AppState.defaultContextModel,
                 textDraft: $contextModelDraft,
@@ -1799,9 +1799,6 @@ struct PromptsSettingsView: View {
             currentActivity: "User is testing the system prompt in \(AppName.displayName) settings.",
             contextSystemPrompt: nil,
             contextPrompt: nil,
-            screenshotDataURL: nil,
-            screenshotMimeType: nil,
-            screenshotError: nil
         )
 
         Task {
@@ -1835,7 +1832,7 @@ struct PromptsSettingsView: View {
             && appState.customContextPromptLastModified < AppContextService.defaultContextPromptDate
 
         return VStack(alignment: .leading, spacing: 10) {
-            Text("Controls how \(AppName.displayName) infers your current activity from app metadata and screenshots.")
+            Text("Controls how \(AppName.displayName) infers your current activity from app and window metadata.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -1961,7 +1958,7 @@ struct PromptsSettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Test Context Prompt")
                     .font(.caption.weight(.semibold))
-                Text("Captures a screenshot and metadata from the frontmost app, then runs the context prompt to infer activity.")
+                Text("Reads metadata from the frontmost app, then runs the context prompt to infer activity.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -2287,15 +2284,6 @@ struct RunLogEntryView: View {
                             title: "Capture Context",
                             content: {
                                 VStack(alignment: .leading, spacing: 6) {
-                                    if let dataURL = item.contextScreenshotDataURL,
-                                       let image = imageFromDataURL(dataURL) {
-                                        Image(nsImage: image)
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fit)
-                                            .frame(maxHeight: 120)
-                                            .cornerRadius(4)
-                                    }
-
                                     if let prompt = item.contextPrompt, !prompt.isEmpty {
                                         Button {
                                             showContextPrompt.toggle()
