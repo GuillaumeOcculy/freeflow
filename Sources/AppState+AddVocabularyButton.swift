@@ -14,11 +14,22 @@ extension AppState {
     /// selected is added.
     @discardableResult
     func addSelectionToVocabulary() -> String? {
+        // Feedback goes to the overlay, next to the cursor. The menu bar
+        // checkmark alone is invisible in practice: the user is looking at the
+        // text they just corrected, not at the top of the screen.
         guard let selectedText = contextService.collectSelectionSnapshot().selectedText,
-              let added = addWordsToVocabulary(selectedText) else {
+              !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            overlayManager.showError("Select a word first")
             return nil
         }
+
+        guard let added = addWordsToVocabulary(selectedText) else {
+            overlayManager.showNotice("Already in vocabulary")
+            return nil
+        }
+
         VocabularyNotificationManager.shared.flashCheckmark()
+        overlayManager.showNotice("Added: \(added)")
         return added
     }
 

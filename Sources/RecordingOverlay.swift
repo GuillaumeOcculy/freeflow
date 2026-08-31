@@ -10,6 +10,8 @@ final class RecordingOverlayState: ObservableObject {
     @Published var isCommandMode = false
     @Published var updateVersion: String = ""
     @Published var errorMessage: String?
+    /// Toasts double as success notices; this picks the icon and tint.
+    @Published var feedbackIsError: Bool = true
     @Published var toastID: UUID?
 }
 
@@ -197,6 +199,17 @@ final class RecordingOverlayManager {
     /// that previously only landed in `os_log` — rate limits, network
     /// failures, permission gaps, etc.
     func showError(_ message: String) {
+        showToast(message, isError: true)
+    }
+
+    /// Same transient toast as `showError`, in a success style. Used for
+    /// confirmations that must be visible where the user is actually looking,
+    /// rather than in the menu bar.
+    func showNotice(_ message: String) {
+        showToast(message, isError: false)
+    }
+
+    private func showToast(_ message: String, isError: Bool) {
         let truncated: String = {
             if message.count <= Self.maxToastMessageLength { return message }
             let cutoff = message.index(message.startIndex, offsetBy: Self.maxToastMessageLength - 1)
@@ -205,11 +218,12 @@ final class RecordingOverlayManager {
         DispatchQueue.main.async {
             let toastID = UUID()
             self.overlayState.errorMessage = truncated
+            self.overlayState.feedbackIsError = isError
             self.overlayState.toastID = toastID
             self.lockedOverlayWidth = nil
             self.overlayState.phase = .feedback
             self.showOverlayPanel(animatedResize: true)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + (isError ? 6.0 : 2.5)) { [weak self] in
                 guard let self else { return }
                 guard self.overlayState.phase == .feedback,
                       self.overlayState.errorMessage == truncated,
@@ -394,9 +408,21 @@ final class RecordingOverlayManager {
             ? notchOverlap
             : 38 + (screenHasNotch ? notchOverlap : 0)
         let x = screen.frame.midX - width / 2
+        if forceDropDownPill {
+            // Toasts sit near the bottom of the screen. Where people write —
+            // a chat composer, a terminal prompt, a reply box — is the bottom,
+            // and their eyes are there. A 2.5s confirmation pinned to the menu
+            // bar is never seen in time. visibleFrame keeps it clear of the Dock.
+            let y = screen.visibleFrame.minY + Self.toastBottomMargin
+            return NSRect(x: x, y: y, width: width, height: height)
+        }
         let y = screen.frame.maxY - height
         return NSRect(x: x, y: y, width: width, height: height)
     }
+
+    /// Gap between the bottom of the usable screen and a toast, chosen to clear
+    /// a typical composer without covering it.
+    private static let toastBottomMargin: CGFloat = 100
 
     private var overlayWidth: CGFloat {
         if let lockedOverlayWidth, overlayState.phase == .transcribing {
@@ -952,7 +978,7 @@ struct RecordingOverlayView: View {
     var body: some View {
         Group {
             if state.phase == .feedback, let message = state.errorMessage {
-                ErrorOverlayView(message: message)
+                ErrorOverlayView(message: message, isError: state.feedbackIsError)
             } else if state.phase == .feedback {
                 FailureIndicatorView()
             } else if state.phase == .updateAvailable {
@@ -1040,12 +1066,13 @@ struct FailureIndicatorView: View {
 /// `overlayWidth` based on message length.
 struct ErrorOverlayView: View {
     let message: String
+    var isError: Bool = true
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "exclamationmark.circle.fill")
+            Image(systemName: isError ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(Color.red.opacity(0.92))
+                .foregroundStyle(isError ? Color.red.opacity(0.92) : Color.green.opacity(0.92))
             Text(message)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white)
