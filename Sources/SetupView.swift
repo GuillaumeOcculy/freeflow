@@ -60,7 +60,6 @@ struct SetupView: View {
         case apiKey
         case micPermission
         case accessibility
-        case screenRecording
         case holdShortcut
         case toggleShortcut
         case copyAgainShortcut
@@ -83,7 +82,6 @@ struct SetupView: View {
     @State private var keyValidationError: String?
     @State private var showingProviderSettingsSheet = false
     @State private var accessibilityTimer: Timer?
-    @State private var screenRecordingTimer: Timer?
     @State private var customVocabularyInput: String = ""
     @StateObject private var githubCache = GitHubMetadataCache.shared
 
@@ -208,7 +206,6 @@ struct SetupView: View {
         }
         .onDisappear {
             accessibilityTimer?.invalidate()
-            screenRecordingTimer?.invalidate()
             appState.resumeHotkeyMonitoringAfterShortcutCapture()
         }
         .sheet(isPresented: $showingProviderSettingsSheet) {
@@ -239,8 +236,6 @@ struct SetupView: View {
             micPermissionStep
         case .accessibility:
             accessibilityStep
-        case .screenRecording:
-            screenRecordingStep
         case .holdShortcut:
             holdShortcutStep
         case .toggleShortcut:
@@ -558,57 +553,6 @@ struct SetupView: View {
         }
         .onDisappear {
             accessibilityTimer?.invalidate()
-        }
-    }
-
-    var screenRecordingStep: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "camera.viewfinder")
-                .font(.system(size: 60))
-                .foregroundStyle(.blue)
-
-            Text("Screen Recording")
-                .font(.title)
-                .fontWeight(.bold)
-
-            Text("\(AppName.displayName) intelligently adapts the transcription to the current app you're working in (ex. spelling names in an email correctly).")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text("It needs this permission to see which app you're working in and any in-progress work. Nothing is stored on \(AppName.displayName)'s servers (\(AppName.displayName) doesn't have servers).")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .font(.callout)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack {
-                Image(systemName: "camera.viewfinder")
-                    .frame(width: 24)
-                    .foregroundStyle(.blue)
-                Text("Screen Recording")
-                Spacer()
-                if appState.hasScreenRecordingPermission {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("Granted")
-                        .foregroundStyle(.green)
-                } else {
-                    Button("Grant Access") {
-                        appState.requestScreenCapturePermission()
-                    }
-                }
-            }
-            .padding(12)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(8)
-
-        }
-        .onAppear {
-            startScreenRecordingPolling()
-        }
-        .onDisappear {
-            screenRecordingTimer?.invalidate()
         }
     }
 
@@ -1091,8 +1035,6 @@ struct SetupView: View {
             return micPermissionGranted
         case .accessibility:
             return accessibilityGranted
-        case .screenRecording:
-            return appState.hasScreenRecordingPermission
         case .testTranscription:
             return testPhase == .done && !testTranscript.isEmpty && testError == nil
         default:
@@ -1204,15 +1146,6 @@ struct SetupView: View {
 
     func requestAccessibility() {
         appState.openAccessibilitySettings()
-    }
-
-    func startScreenRecordingPolling() {
-        screenRecordingTimer?.invalidate()
-        screenRecordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            DispatchQueue.main.async {
-                appState.hasScreenRecordingPermission = CGPreflightScreenCaptureAccess()
-            }
-        }
     }
 
     // MARK: - Test Transcription
