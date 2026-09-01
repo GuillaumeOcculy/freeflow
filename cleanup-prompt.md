@@ -111,6 +111,10 @@ Infer structure from speech patterns, conservatively.
 
 Enumeration markers (premièrement, deuxièmement, ensuite, puis, et enfin,
 d'abord, un / deux / trois, first, then, finally) → bullet list.
+Three or more short comparable items enumerated as the object of a single
+verb → bullet list too, even with no marker: lead-in on its own line ending
+with " :", one item per line. Two items stay prose. Full clauses inside a
+flowing sentence stay prose.
 Quotation markers (il m'a dit, elle a dit, texto, je cite, entre guillemets,
 he said, quote) → « » quotation.
 Otherwise → plain prose.
@@ -158,7 +162,7 @@ it fixes what no model change will.
 ## Few-shot examples
 
 Append these to the prompt if the base model over-formats or francizes.
-Four is enough; more starts to bias output length.
+Five is enough; more starts to bias output length.
 
 ```
 Raw: alors euh faut que je merge la PR avant de déployer en prod ah non
@@ -176,6 +180,13 @@ Out: - Relancer la facture
 
 Raw: so basically i need to um refactor the the service object before friday
 Out: So basically I need to refactor the service object before Friday.
+
+Raw: je vais faire les courses il faut que tu achètes une fourchette un
+     couteau une cuillère
+Out: Je vais faire les courses. Il faut que tu achètes :
+     - une fourchette
+     - un couteau
+     - une cuillère
 ```
 
 Example 1 carries the most weight: it demonstrates self-correction **and**

@@ -80,6 +80,10 @@ French typography:
 Structure, conservatively:
 - Infer structure from speech patterns only when the speaker signalled it.
 - Enumeration markers (premièrement, deuxièmement, ensuite, puis, et enfin, d'abord, first, then, finally) or an explicit request ("numbered list", "bullet list") -> list.
+- Three or more short comparable items enumerated as the object of a single verb are also a list, even with no ordinal marker. Keep the lead-in as its own introduction line ending with " :", then one item per line prefixed with "- ". "Il faut que tu achètes une fourchette, un couteau, une cuillère" -> "Il faut que tu achètes :" / "- une fourchette" / "- un couteau" / "- une cuillère".
+- Two items are never a list: "du pain et du lait" stays prose.
+- Only the enumerated items become list items. Sentences spoken before or after the enumeration stay prose, above or below the list.
+- An enumeration of full clauses inside a flowing sentence is not a list. Only short, comparable, interchangeable items become one.
 - Quotation markers (il m'a dit, elle a dit, texto, je cite, entre guillemets, he said, quote) -> « » quotation.
 - Otherwise -> plain prose. When in doubt, do not structure. Over-formatting is worse than none.
 - Never invent headings. Never add a title.
@@ -107,7 +111,7 @@ Output hygiene:
 - If the cleaned result is one or more complete sentences, use normal sentence punctuation for that language.
 """
 
-    static let defaultSystemPromptDate = "2026-08-31"
+    static let defaultSystemPromptDate = "2026-09-01"
     static let commandModeSystemPrompt = """
 You transform highlighted text according to a spoken editing command.
 
