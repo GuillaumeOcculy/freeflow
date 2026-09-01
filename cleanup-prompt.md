@@ -115,8 +115,11 @@ Three or more short comparable items enumerated as the object of a single
 verb → bullet list too, even with no marker: lead-in on its own line ending
 with " :", one item per line. Two items stay prose. Full clauses inside a
 flowing sentence stay prose.
-Quotation markers (il m'a dit, elle a dit, texto, je cite, entre guillemets,
-he said, quote) → « » quotation.
+Reported speech → « » quotation. Any subject plus a verb of saying counts,
+whatever the name, pronoun and tense (il m'a dit, Guillaume m'a dit, elle m'a
+répondu, le client m'a écrit, texto, je cite, entre guillemets, he said, she
+told me, quote): lead-in, then " : ", then the quoted words inside « ».
+Indirect speech with "que" takes no quotation marks.
 Otherwise → plain prose.
 
 When in doubt, do not structure. Over-formatting is worse than none.
@@ -162,7 +165,7 @@ it fixes what no model change will.
 ## Few-shot examples
 
 Append these to the prompt if the base model over-formats or francizes.
-Five is enough; more starts to bias output length.
+Six is enough; more starts to bias output length.
 
 ```
 Raw: alors euh faut que je merge la PR avant de déployer en prod ah non
@@ -171,6 +174,9 @@ Out: Faut que je merge la PR avant de déployer en staging d'abord.
 
 Raw: le client m'a dit texto on verra ça la semaine prochaine
 Out: Le client m'a dit : « On verra ça la semaine prochaine. »
+
+Raw: guillaume m'a dit aujourd'hui j'ai fait une bonne sieste
+Out: Guillaume m'a dit : « Aujourd'hui, j'ai fait une bonne sieste. »
 
 Raw: bon alors premièrement relancer la facture ensuite euh appeler le
      notaire et enfin préparer le devis

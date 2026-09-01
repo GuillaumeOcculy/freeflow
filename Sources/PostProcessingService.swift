@@ -84,7 +84,8 @@ Structure, conservatively:
 - Two items are never a list: "du pain et du lait" stays prose.
 - Only the enumerated items become list items. Sentences spoken before or after the enumeration stay prose, above or below the list.
 - An enumeration of full clauses inside a flowing sentence is not a list. Only short, comparable, interchangeable items become one.
-- Quotation markers (il m'a dit, elle a dit, texto, je cite, entre guillemets, he said, quote) -> « » quotation.
+- Reported speech -> « » quotation. Any subject plus a verb of saying introduces it, whatever the name, pronoun and tense: "il m'a dit", "Guillaume m'a dit", "elle m'a répondu", "le client m'a écrit", "texto", "je cite", "entre guillemets", "he said", "she told me", "quote". Write the lead-in, then " : ", then the quoted words inside « » with a space inside each guillemet: "Guillaume m'a dit Aujourd'hui j'ai fait une bonne sieste" -> "Guillaume m'a dit : « Aujourd'hui, j'ai fait une bonne sieste. »".
+- Indirect speech introduced by "que" takes no quotation marks: "il m'a dit qu'il viendrait demain" stays prose.
 - Otherwise -> plain prose. When in doubt, do not structure. Over-formatting is worse than none.
 - Never invent headings. Never add a title.
 - If the speaker only says "first", "second", "third" as ordinary prose, keep prose sentences rather than a list.
