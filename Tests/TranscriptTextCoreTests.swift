@@ -9,6 +9,7 @@ enum TranscriptTextCoreTests {
         testPossibleRealSpeechIsPreserved()
         testPostProcessedTranscriptSanitization()
         testHardLineBreaksAreRejoined()
+        testUnicodeHyphensAreNormalized()
         testModeSpecificSanitization()
         testInstructionExecutionGuard()
     }
@@ -108,6 +109,16 @@ enum TranscriptTextCoreTests {
         TestSupport.expectEqual(
             TranscriptOutputSanitizer.postProcessedTranscript("Fin du paragraphe.  \n\nSuivant."),
             "Fin du paragraphe.\n\nSuivant."
+        )
+    }
+
+    /// Unicode hyphens become the typed hyphen; real dashes stay.
+    private static func testUnicodeHyphensAreNormalized() {
+        TestSupport.expectEqual(
+            TranscriptOutputSanitizer.postProcessedTranscript(
+                "Peut\u{2011}être, c'est\u{2010}à\u{2011}dire – une pause — puis la suite."
+            ),
+            "Peut-être, c'est-à-dire – une pause — puis la suite."
         )
     }
 

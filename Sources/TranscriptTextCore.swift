@@ -118,7 +118,17 @@ enum TranscriptOutputSanitizer {
             return ""
         }
 
-        return joiningHardLineBreaks(result)
+        return joiningHardLineBreaks(normalizingHyphens(result))
+    }
+
+    /// The cleanup model sometimes writes "peut‑être" or "c'est‑à‑dire" with
+    /// a Unicode hyphen (U+2010) or non-breaking hyphen (U+2011). They look
+    /// identical but a search for the typed word misses them, so fold both
+    /// back to the ASCII hyphen-minus. Dashes (– —) are left alone.
+    static func normalizingHyphens(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\u{2010}", with: "-")
+            .replacingOccurrences(of: "\u{2011}", with: "-")
     }
 
     /// Asked for paragraphs, the cleanup model often also puts every sentence
