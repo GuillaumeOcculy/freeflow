@@ -587,6 +587,11 @@ final class AppState: ObservableObject, @unchecked Sendable {
     fileprivate(set) var contextService: AppContextService
     private var contextCaptureTask: Task<AppContext?, Never>?
     private var doubleTapWindowWorkItem: DispatchWorkItem?
+    /// The terms captured when the Add to Vocabulary shortcut fired, waiting
+    /// for the user to confirm them. Non-nil exactly while the confirmation
+    /// prompt is on screen, which is also what makes Return confirm.
+    private var pendingVocabularyTerms: String?
+    private var vocabularyConfirmationWorkItem: DispatchWorkItem?
     private var capturedContext: AppContext?
     private var audioDeviceObservers: [NSObjectProtocol] = []
     private var needsMicrophoneRefreshAfterRecording = false
@@ -785,6 +790,11 @@ final class AppState: ObservableObject, @unchecked Sendable {
         overlayManager.onUpdateOverlayPressed = { [weak self] in
             DispatchQueue.main.async {
                 self?.handleUpdateOverlayPressed()
+            }
+        }
+        overlayManager.onVocabularyConfirmPressed = { [weak self] in
+            DispatchQueue.main.async {
+                self?.commitPendingVocabularyTerms()
             }
         }
 
@@ -1621,7 +1631,8 @@ final class AppState: ObservableObject, @unchecked Sendable {
             hold: holdShortcut,
             copyAgain: copyAgainShortcut,
             addVocabulary: addVocabularyShortcut,
-            permittedAdditionalExactMatchModifiers: permittedAdditionalExactMatchModifiers
+            permittedAdditionalExactMatchModifiers: permittedAdditionalExactMatchModifiers,
+            isAwaitingVocabularyConfirmation: pendingVocabularyTerms != nil
         )
     }
 
@@ -1641,16 +1652,31 @@ final class AppState: ObservableObject, @unchecked Sendable {
     }
 
     private func handleShortcutEvent(_ event: ShortcutEvent) {
+        if event == .vocabularyConfirmed {
+            // The extension is main-actor isolated; shortcut events already
+            // arrive on the main queue, so this just satisfies the checker.
+            DispatchQueue.main.async { [weak self] in
+                self?.commitPendingVocabularyTerms()
+            }
+            return
+        }
+
+        // Any other shortcut means the user moved on. Drop the prompt rather
+        // than leaving it to keep swallowing Return behind the next overlay.
+        if event != .addVocabularyTriggered {
+            DispatchQueue.main.async { [weak self] in
+                self?.cancelVocabularyConfirmation()
+            }
+        }
+
         if event == .copyAgainTriggered {
             copyLastTranscriptToPasteboard()
             return
         }
 
         if event == .addVocabularyTriggered {
-            // The extension is main-actor isolated; shortcut events already
-            // arrive on the main queue, so this just satisfies the checker.
             DispatchQueue.main.async { [weak self] in
-                self?.addSelectionToVocabulary()
+                self?.requestVocabularyConfirmation()
             }
             return
         }
@@ -1687,6 +1713,68 @@ final class AppState: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// How long the confirmation prompt stays up. It has to be long enough to
+    /// read a word and answer, and short enough that an ignored prompt stops
+    /// intercepting Return almost immediately — the shortcut is pressed by
+    /// accident, and Return is how people send the message they were writing.
+    private static let vocabularyConfirmationTimeout: TimeInterval = 5
+
+    /// Ask before adding the current selection to the vocabulary. The shortcut
+    /// is a single modifier key, so it gets pressed by accident; nothing is
+    /// written until the user answers with Return or the button.
+    @MainActor
+    private func requestVocabularyConfirmation() {
+        guard let terms = vocabularyTermsFromSelection() else {
+            // Nothing to confirm, and the overlay already said why.
+            cancelVocabularyConfirmation()
+            return
+        }
+
+        pendingVocabularyTerms = terms
+        overlayManager.showVocabularyConfirmation(term: terms)
+        // Return only becomes the confirmation key once the prompt is up.
+        restartHotkeyMonitoring()
+        armVocabularyConfirmationTimeout()
+    }
+
+    @MainActor
+    private func commitPendingVocabularyTerms() {
+        guard let terms = pendingVocabularyTerms else { return }
+        clearVocabularyConfirmation()
+        commitVocabularyTerms(terms)
+    }
+
+    @MainActor
+    private func cancelVocabularyConfirmation() {
+        guard pendingVocabularyTerms != nil else { return }
+        clearVocabularyConfirmation()
+        overlayManager.dismissVocabularyConfirmation()
+    }
+
+    /// Forget the pending terms and hand Return back to the app underneath.
+    @MainActor
+    private func clearVocabularyConfirmation() {
+        vocabularyConfirmationWorkItem?.cancel()
+        vocabularyConfirmationWorkItem = nil
+        pendingVocabularyTerms = nil
+        restartHotkeyMonitoring()
+    }
+
+    @MainActor
+    private func armVocabularyConfirmationTimeout() {
+        vocabularyConfirmationWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.vocabularyConfirmationWorkItem = nil
+            self.cancelVocabularyConfirmation()
+        }
+        vocabularyConfirmationWorkItem = workItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.vocabularyConfirmationTimeout,
+            execute: workItem
+        )
+    }
+
     /// A tap keeps recording while we wait to see whether it is the first half
     /// of a double tap. If nothing follows, the recording is discarded.
     private func armDoubleTapWindow() {
@@ -1714,6 +1802,13 @@ final class AppState: ObservableObject, @unchecked Sendable {
     }
 
     private func handleEscapeKeyPress() -> Bool {
+        if pendingVocabularyTerms != nil {
+            DispatchQueue.main.async { [weak self] in
+                self?.cancelVocabularyConfirmation()
+            }
+            return true
+        }
+
         if isTranscribing {
             cancelTranscription()
             return true

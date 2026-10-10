@@ -73,6 +73,8 @@ enum ShortcutEvent: Equatable {
     case holdDeactivated
     case copyAgainTriggered
     case addVocabularyTriggered
+    /// Return pressed while a vocabulary addition is waiting to be confirmed.
+    case vocabularyConfirmed
 }
 
 struct ShortcutConfiguration: Equatable {
@@ -80,17 +82,23 @@ struct ShortcutConfiguration: Equatable {
     let copyAgain: ShortcutBinding
     let addVocabulary: ShortcutBinding
     let permittedAdditionalExactMatchModifiers: ShortcutModifiers
+    /// True while a word is on screen waiting to be confirmed into the
+    /// vocabulary. It turns Return into the confirmation key for as long as
+    /// the prompt is up, and nothing else.
+    let isAwaitingVocabularyConfirmation: Bool
 
     init(
         hold: ShortcutBinding,
         copyAgain: ShortcutBinding = .disabled,
         addVocabulary: ShortcutBinding = .disabled,
-        permittedAdditionalExactMatchModifiers: ShortcutModifiers = []
+        permittedAdditionalExactMatchModifiers: ShortcutModifiers = [],
+        isAwaitingVocabularyConfirmation: Bool = false
     ) {
         self.hold = hold
         self.copyAgain = copyAgain
         self.addVocabulary = addVocabulary
         self.permittedAdditionalExactMatchModifiers = permittedAdditionalExactMatchModifiers
+        self.isAwaitingVocabularyConfirmation = isAwaitingVocabularyConfirmation
     }
 
     static let disabled = ShortcutConfiguration(hold: .disabled, copyAgain: .disabled, addVocabulary: .disabled)

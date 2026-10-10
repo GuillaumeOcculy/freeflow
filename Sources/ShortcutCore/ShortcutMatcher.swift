@@ -118,6 +118,16 @@ enum ShortcutMatcher {
             )
 
         case .keyChanged(let keyCode, let isDown, let isRepeat):
+            if let confirmation = reduceVocabularyConfirmation(
+                state: state,
+                keyCode: keyCode,
+                isDown: isDown,
+                isRepeat: isRepeat,
+                configuration: configuration
+            ) {
+                return confirmation
+            }
+
             let shouldConsumeBefore = shouldConsumeKeyEvent(
                 for: keyCode,
                 state: state,
@@ -151,6 +161,45 @@ enum ShortcutMatcher {
                 consumeDecision: (shouldConsumeBefore || shouldConsumeAfter) ? .consume : .passthrough
             )
         }
+    }
+
+    /// Return and the numeric-keypad Enter, the two keys that confirm the
+    /// pending vocabulary addition.
+    private static let vocabularyConfirmationKeyCodes: Set<UInt16> = [36, 76]
+
+    /// While a vocabulary addition awaits confirmation, a bare Return means
+    /// "yes, add it" and must never reach the app underneath — there it would
+    /// send a message or break a line. Any modifier held (Shift+Return for a
+    /// newline, Command+Return to send) leaves the key alone: the user is
+    /// typing, not answering the prompt.
+    private static func reduceVocabularyConfirmation(
+        state: ShortcutInputState,
+        keyCode: UInt16,
+        isDown: Bool,
+        isRepeat: Bool,
+        configuration: ShortcutConfiguration
+    ) -> ShortcutMatchResult? {
+        guard configuration.isAwaitingVocabularyConfirmation,
+              vocabularyConfirmationKeyCodes.contains(keyCode),
+              state.pressedModifierKeyCodes.isEmpty else {
+            return nil
+        }
+
+        var nextState = state
+        if isDown {
+            nextState.pressedKeyCodes.insert(keyCode)
+        } else {
+            nextState.pressedKeyCodes.remove(keyCode)
+        }
+
+        // The key repeat and the key up are swallowed too, so holding Return
+        // confirms once instead of pouring newlines into the app below.
+        let emittedEvents: [ShortcutEvent] = (isDown && !isRepeat) ? [.vocabularyConfirmed] : []
+        return ShortcutMatchResult(
+            state: isRepeat ? state : nextState,
+            emittedEvents: emittedEvents,
+            consumeDecision: .consume
+        )
     }
 
     private static func reduceBackendReset(

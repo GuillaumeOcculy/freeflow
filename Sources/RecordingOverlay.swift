@@ -10,6 +10,8 @@ final class RecordingOverlayState: ObservableObject {
     @Published var isCommandMode = false
     @Published var updateVersion: String = ""
     @Published var errorMessage: String?
+    /// The word waiting for the user to confirm it into the vocabulary.
+    @Published var confirmationTerm: String = ""
     /// Toasts double as success notices; this picks the icon and tint.
     @Published var feedbackIsError: Bool = true
     @Published var toastID: UUID?
@@ -20,6 +22,7 @@ enum OverlayPhase {
     case recording
     case transcribing
     case feedback
+    case vocabularyConfirmation
     case updateAvailable
 }
 
@@ -81,6 +84,7 @@ final class RecordingOverlayManager {
 
     var onStopButtonPressed: (() -> Void)?
     var onUpdateOverlayPressed: (() -> Void)?
+    var onVocabularyConfirmPressed: (() -> Void)?
 
     /// The screen the overlay should drop down on. The user picks one of
     /// three modes in Settings, stored in UserDefaults under
@@ -128,6 +132,7 @@ final class RecordingOverlayManager {
     private var overlayAcceptsMouseEvents: Bool {
         (overlayState.phase == .recording && overlayState.recordingTriggerMode == .toggle)
             || overlayState.phase == .updateAvailable
+            || overlayState.phase == .vocabularyConfirmation
     }
 
     func showInitializing(mode: RecordingTriggerMode = .hold, isCommandMode: Bool = false) {
@@ -237,6 +242,31 @@ final class RecordingOverlayManager {
         }
     }
 
+    /// Ask before adding `term` to the vocabulary. The prompt sits at the
+    /// bottom of the screen like a toast — the shortcut is pressed while
+    /// looking at a word in the composer, not at the menu bar — and stays up
+    /// until the caller confirms, cancels, or times out.
+    func showVocabularyConfirmation(term: String) {
+        DispatchQueue.main.async {
+            self.lockedOverlayWidth = nil
+            self.overlayState.errorMessage = nil
+            self.overlayState.toastID = nil
+            self.overlayState.confirmationTerm = term
+            self.overlayState.phase = .vocabularyConfirmation
+            self.showOverlayPanel(animatedResize: true)
+        }
+    }
+
+    /// Take the confirmation prompt down without disturbing whatever the
+    /// overlay moved on to showing.
+    func dismissVocabularyConfirmation() {
+        DispatchQueue.main.async {
+            guard self.overlayState.phase == .vocabularyConfirmation else { return }
+            self.overlayState.confirmationTerm = ""
+            self.dismissAll()
+        }
+    }
+
     func showUpdateAvailable(version: String) {
         DispatchQueue.main.async {
             self.lockedOverlayWidth = nil
@@ -333,6 +363,9 @@ final class RecordingOverlayManager {
                     },
                     onUpdateOverlayPressed: { [weak self] in
                         self?.onUpdateOverlayPressed?()
+                    },
+                    onVocabularyConfirmPressed: { [weak self] in
+                        self?.onVocabularyConfirmPressed?()
                     }
                 )
                 .padding(.top, screenHasNotch ? notchOverlap : 0)
@@ -365,7 +398,7 @@ final class RecordingOverlayManager {
             return true
         case .feedback:
             return overlayState.errorMessage?.isEmpty ?? true
-        case .updateAvailable:
+        case .vocabularyConfirmation, .updateAvailable:
             return false
         }
     }
@@ -396,8 +429,8 @@ final class RecordingOverlayManager {
 
         let width = overlayWidth
         let useCompact = (UserDefaults.standard.object(forKey: "use_compact_overlay") as? Bool) ?? true
-        let forceDropDownPill = overlayState.phase == .feedback
-            && !(overlayState.errorMessage?.isEmpty ?? true)
+        let forceDropDownPill = overlayState.phase == .vocabularyConfirmation
+            || (overlayState.phase == .feedback && !(overlayState.errorMessage?.isEmpty ?? true))
         // Compact mode: overlay sits flush with the menu bar on every display.
         // notchOverlap equals the menu-bar height on non-notched screens too,
         // so zero protrusion is universal — not notch-only. The legacy
@@ -447,6 +480,15 @@ final class RecordingOverlayManager {
             return max(notchWidth, feedbackWidth)
         }
 
+        if overlayState.phase == .vocabularyConfirmation {
+            // Same character-width estimate as the toast, plus the chrome of
+            // the icon and the Add button.
+            let estimated = CGFloat(overlayState.confirmationTerm.count) * 6.8 + 210
+            let confirmationWidth = min(460, max(260, estimated))
+            guard screenHasNotch else { return confirmationWidth }
+            return max(notchWidth, confirmationWidth)
+        }
+
         if overlayState.phase == .updateAvailable {
             let updateWidth: CGFloat = 190
             guard screenHasNotch else { return updateWidth }
@@ -480,6 +522,7 @@ final class RecordingOverlayManager {
         lockedOverlayWidth = nil
         overlayState.isCommandMode = false
         overlayState.updateVersion = ""
+        overlayState.confirmationTerm = ""
         if let panel = overlayWindow {
             panel.orderOut(nil)
             // orderOut alone leaves the panel retained in NSApp.windows with its
@@ -963,6 +1006,7 @@ struct RecordingOverlayView: View {
     @ObservedObject var state: RecordingOverlayState
     let onStopButtonPressed: () -> Void
     let onUpdateOverlayPressed: () -> Void
+    var onVocabularyConfirmPressed: () -> Void = {}
 
     private let leadingAccessoryWidth: CGFloat = 24
     private let trailingAccessoryWidth: CGFloat = 32
@@ -981,6 +1025,11 @@ struct RecordingOverlayView: View {
                 ErrorOverlayView(message: message, isError: state.feedbackIsError)
             } else if state.phase == .feedback {
                 FailureIndicatorView()
+            } else if state.phase == .vocabularyConfirmation {
+                VocabularyConfirmationOverlayView(
+                    term: state.confirmationTerm,
+                    onConfirm: onVocabularyConfirmPressed
+                )
             } else if state.phase == .updateAvailable {
                 UpdateAvailableOverlayView(onPress: onUpdateOverlayPressed)
             } else {
@@ -1078,6 +1127,45 @@ struct ErrorOverlayView: View {
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .truncationMode(.tail)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+}
+
+/// Confirmation prompt for the Add to Vocabulary shortcut. The shortcut is a
+/// single modifier key, easy to hit by accident, so the word only lands in the
+/// vocabulary once the user says so — with Return or with this button.
+struct VocabularyConfirmationOverlayView: View {
+    let term: String
+    let onConfirm: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "text.book.closed.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
+
+            Text("Add \u{201C}\(term)\u{201D}?")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Spacer(minLength: 4)
+
+            Button(action: onConfirm) {
+                HStack(spacing: 4) {
+                    Text("Add")
+                        .font(.system(size: 11, weight: .semibold))
+                    Image(systemName: "return")
+                        .font(.system(size: 9, weight: .bold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(Color.accentColor.opacity(0.9)))
+            }
+            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }

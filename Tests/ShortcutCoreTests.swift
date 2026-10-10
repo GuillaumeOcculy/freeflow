@@ -10,6 +10,9 @@ enum ShortcutCoreTests {
         testRepeatedKeyDownDoesNotReactivate()
         testPasteAgainFiresOnLeadingEdgeOnly()
         testAddVocabularyFiresOnLeadingEdgeAndIsInertForDictation()
+        testReturnConfirmsPendingVocabularyAddition()
+        testModifiedReturnIsLeftToTheAppUnderneath()
+        testReturnIsUntouchedWithoutAPendingVocabularyAddition()
         testBackendResetClearsActiveBindings()
         testBindingMigrationAndIdentity()
         testConflictDetection()
@@ -227,6 +230,73 @@ enum ShortcutCoreTests {
         TestSupport.expectEqual(repeated.emittedEvents, [])
         TestSupport.expectEqual(up.emittedEvents, [])
         TestSupport.expectEqual(secondDown.emittedEvents, [.copyAgainTriggered])
+    }
+
+    /// While a word waits to be confirmed, Return means "add it" and never
+    /// reaches the app underneath, where it would send a message.
+    private static func testReturnConfirmsPendingVocabularyAddition() {
+        let configuration = ShortcutConfiguration(
+            hold: .defaultHold,
+            addVocabulary: ShortcutPreset.rightOption.binding,
+            isAwaitingVocabularyConfirmation: true
+        )
+        let down = ShortcutMatcher.reduce(
+            state: ShortcutInputState(),
+            event: .keyChanged(keyCode: 36, isDown: true, isRepeat: false),
+            configuration: configuration
+        )
+        let repeated = ShortcutMatcher.reduce(
+            state: down.state,
+            event: .keyChanged(keyCode: 36, isDown: true, isRepeat: true),
+            configuration: configuration
+        )
+        let up = ShortcutMatcher.reduce(
+            state: repeated.state,
+            event: .keyChanged(keyCode: 36, isDown: false, isRepeat: false),
+            configuration: configuration
+        )
+        let keypadEnter = ShortcutMatcher.reduce(
+            state: ShortcutInputState(),
+            event: .keyChanged(keyCode: 76, isDown: true, isRepeat: false),
+            configuration: configuration
+        )
+
+        TestSupport.expectEqual(down.emittedEvents, [.vocabularyConfirmed])
+        TestSupport.expectEqual(down.consumeDecision, .consume)
+        TestSupport.expectEqual(repeated.emittedEvents, [])
+        TestSupport.expectEqual(repeated.consumeDecision, .consume)
+        TestSupport.expectEqual(up.emittedEvents, [])
+        TestSupport.expectEqual(up.consumeDecision, .consume)
+        TestSupport.expectEqual(keypadEnter.emittedEvents, [.vocabularyConfirmed])
+    }
+
+    /// Shift+Return breaks a line and Command+Return sends: the user is
+    /// typing, not answering the prompt, so the key is left alone.
+    private static func testModifiedReturnIsLeftToTheAppUnderneath() {
+        let configuration = ShortcutConfiguration(
+            hold: .defaultHold,
+            isAwaitingVocabularyConfirmation: true
+        )
+        let shiftedReturn = ShortcutMatcher.reduce(
+            state: ShortcutInputState(pressedModifierKeyCodes: [56]),
+            event: .keyChanged(keyCode: 36, isDown: true, isRepeat: false),
+            configuration: configuration
+        )
+
+        TestSupport.expectEqual(shiftedReturn.emittedEvents, [])
+        TestSupport.expectEqual(shiftedReturn.consumeDecision, .passthrough)
+    }
+
+    private static func testReturnIsUntouchedWithoutAPendingVocabularyAddition() {
+        let configuration = ShortcutConfiguration(hold: .defaultHold)
+        let down = ShortcutMatcher.reduce(
+            state: ShortcutInputState(),
+            event: .keyChanged(keyCode: 36, isDown: true, isRepeat: false),
+            configuration: configuration
+        )
+
+        TestSupport.expectEqual(down.emittedEvents, [])
+        TestSupport.expectEqual(down.consumeDecision, .passthrough)
     }
 
     private static func testBackendResetClearsActiveBindings() {
