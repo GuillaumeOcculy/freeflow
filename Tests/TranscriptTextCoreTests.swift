@@ -8,6 +8,7 @@ enum TranscriptTextCoreTests {
         testHighConfidenceHallucinationsAreSuppressed()
         testPossibleRealSpeechIsPreserved()
         testPostProcessedTranscriptSanitization()
+        testHardLineBreaksAreRejoined()
         testModeSpecificSanitization()
         testInstructionExecutionGuard()
     }
@@ -87,6 +88,27 @@ enum TranscriptTextCoreTests {
         TestSupport.expectEqual(TranscriptOutputSanitizer.postProcessedTranscript("\"EMPTY\""), "")
         TestSupport.expectEqual(TranscriptOutputSanitizer.postProcessedTranscript("empty"), "empty")
         TestSupport.expectEqual(TranscriptOutputSanitizer.postProcessedTranscript("  \n "), "")
+    }
+
+    /// A sentence per line inside a paragraph is rejoined; the blank line
+    /// between paragraphs and the plain line breaks of a list are kept.
+    private static func testHardLineBreaksAreRejoined() {
+        TestSupport.expectEqual(
+            TranscriptOutputSanitizer.postProcessedTranscript(
+                "Première phrase.  \nDeuxième phrase.  \nTroisième ?\n\nNouvelle idée.  \nSuite. "
+            ),
+            "Première phrase. Deuxième phrase. Troisième ?\n\nNouvelle idée. Suite."
+        )
+        TestSupport.expectEqual(
+            TranscriptOutputSanitizer.postProcessedTranscript(
+                "Il faut acheter :\n- une fourchette\n- un couteau"
+            ),
+            "Il faut acheter :\n- une fourchette\n- un couteau"
+        )
+        TestSupport.expectEqual(
+            TranscriptOutputSanitizer.postProcessedTranscript("Fin du paragraphe.  \n\nSuivant."),
+            "Fin du paragraphe.\n\nSuivant."
+        )
     }
 
     private static func testModeSpecificSanitization() {

@@ -118,7 +118,28 @@ enum TranscriptOutputSanitizer {
             return ""
         }
 
-        return result
+        return joiningHardLineBreaks(result)
+    }
+
+    /// Asked for paragraphs, the cleanup model often also puts every sentence
+    /// on its own line, ending each with a markdown hard break (two trailing
+    /// spaces). Rejoin those lines so paragraphs read as prose. Only that
+    /// marker joins lines: list items and email sign-offs end without it and
+    /// keep their line breaks. Trailing spaces never survive the paste.
+    static func joiningHardLineBreaks(_ value: String) -> String {
+        var output: [String] = []
+        var joinsNextLine = false
+        for line in value.components(separatedBy: "\n") {
+            let endsWithHardBreak = line.hasSuffix("  ")
+            let trimmed = String(line.reversed().drop(while: { $0 == " " || $0 == "\t" }).reversed())
+            if joinsNextLine, !trimmed.isEmpty, let previous = output.popLast() {
+                output.append(previous + " " + trimmed.drop(while: { $0 == " " }))
+            } else {
+                output.append(trimmed)
+            }
+            joinsNextLine = endsWithHardBreak && !trimmed.isEmpty
+        }
+        return output.joined(separator: "\n")
     }
 
     static func commandModeTranscript(_ value: String) -> String {
