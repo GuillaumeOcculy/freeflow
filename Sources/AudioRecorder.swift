@@ -101,8 +101,8 @@ final class AudioRecorder: NSObject, ObservableObject, AVCaptureAudioDataOutputS
     /// to a realtime transcription socket. The recorder writes a normalized
     /// 16 kHz mono PCM16 WAV file independently for upload-based transcription.
     var onPCM16Samples: ((Data) -> Void)?
-    private let recordingConverterLock = OSAllocatedUnfairLock<AVAudioConverter?>(initialState: nil)
-    private let pcm16ConverterLock = OSAllocatedUnfairLock<AVAudioConverter?>(initialState: nil)
+    private let recordingConverterLock = OSAllocatedUnfairLock<AVAudioConverter?>(uncheckedState: nil)
+    private let pcm16ConverterLock = OSAllocatedUnfairLock<AVAudioConverter?>(uncheckedState: nil)
     private let recordingTargetFormat: AVAudioFormat = {
         AVAudioFormat(
             commonFormat: .pcmFormatInt16,
@@ -508,7 +508,7 @@ final class AudioRecorder: NSObject, ObservableObject, AVCaptureAudioDataOutputS
         from sourceFormat: AVAudioFormat,
         to targetFormat: AVAudioFormat
     ) throws -> AVAudioPCMBuffer {
-        let converter = recordingConverterLock.withLock { existing -> AVAudioConverter? in
+        let converter = recordingConverterLock.withLockUnchecked { existing -> AVAudioConverter? in
             if let existing, existing.inputFormat == sourceFormat {
                 return existing
             }
@@ -616,8 +616,8 @@ final class AudioRecorder: NSObject, ObservableObject, AVCaptureAudioDataOutputS
         isSessionInterrupted = false
         activeAudioFile = nil
         activeAudioFormat = nil
-        recordingConverterLock.withLock { $0 = nil }
-        pcm16ConverterLock.withLock { $0 = nil }
+        recordingConverterLock.withLockUnchecked { $0 = nil }
+        pcm16ConverterLock.withLockUnchecked { $0 = nil }
         recordedFrameCount = 0
         loggedCaptureFormat = false
         fileWriteErrorLock.withLock { _ in
@@ -824,7 +824,7 @@ final class AudioRecorder: NSObject, ObservableObject, AVCaptureAudioDataOutputS
             frameCount: frameCount
         ) else { return }
 
-        let converter = pcm16ConverterLock.withLock { existing -> AVAudioConverter? in
+        let converter = pcm16ConverterLock.withLockUnchecked { existing -> AVAudioConverter? in
             if let existing, existing.inputFormat == sourceFormat {
                 return existing
             }
