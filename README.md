@@ -23,20 +23,66 @@
   <i>Thank you to <a href="https://github.com/marcbodea">@marcbodea</a> for maintaining FreeFlow!</i>
 </p>
 
-> **Personal fork.** This is a personal, never-redistributed fork of
+> **Personal fork.** This is a personal fork of
 > [zachlatta/freeflow](https://github.com/zachlatta/freeflow). It removes the
 > Screen Recording permission and all screenshot capture, merges the two
 > dictation shortcuts into one, and tunes cleanup for French dictation with
-> embedded English technical terms. The download link above is the upstream
-> build; this fork is built from source (see Quick Start).
+> embedded English technical terms. There is no prebuilt download: the link
+> above installs the upstream app, not this fork. Build it from source as
+> described in [Installation](#installation).
 
 ## Overview
 
 FreeFlow is a free Mac dictation app inspired by [Wispr Flow](https://wisprflow.ai/), [Superwhisper](https://superwhisper.com/), and [Monologue](https://www.monologue.to/). It gives you fast AI transcription, context-aware cleanup, and voice-driven text editing without a monthly subscription.
 
+## Installation
+
+Requirements: macOS 13 or later, and Xcode (it provides `swiftc` and the macOS
+SDK). Open Xcode once after installing it to accept the license.
+
+**1. Create a code-signing certificate (once).** The build signs the app with
+a certificate named `FreeFlow Dev`. A self-signed one is enough:
+
+1. Open **Keychain Access**, then **Keychain Access › Certificate Assistant ›
+   Create a Certificate…**
+2. Name: `FreeFlow Dev` (exactly). Identity Type: **Self Signed Root**.
+   Certificate Type: **Code Signing**. Click Create.
+3. Check that it is visible: `security find-identity -p codesigning` should
+   list `"FreeFlow Dev"`.
+
+Why it matters: macOS ties the Accessibility permission to the app's
+signature. With a stable certificate, the permission survives every rebuild.
+You can build without one using `make CODESIGN_IDENTITY=-` (ad-hoc signing),
+but macOS then silently revokes Accessibility after each rebuild and pasting
+stops working until you grant it again.
+
+**2. Build and launch.**
+
+```bash
+git clone https://github.com/<you>/freeflow.git
+cd freeflow
+make run
+```
+
+This produces `build/FreeFlow Dev.app` and opens it. To keep it, copy it to
+`/Applications`. When rebuilding, quit the running app first: `make run` does
+not restart an app that is already open.
+
+**3. Set it up.** The first launch walks you through it:
+
+- Paste a free Groq API key from [console.groq.com](https://console.groq.com/keys).
+- Allow **Microphone** access.
+- Allow **Accessibility** access (System Settings › Privacy & Security ›
+  Accessibility). It is what lets FreeFlow paste text and read the frontmost
+  app's context.
+
+**Updates.** A source build never checks for updates on its own. Do not use
+**Check for Updates**: it would replace this fork with the upstream app. To
+update, `git pull` and run `make run` again.
+
 ## Quick Start
 
-1. Build and launch with `make run` (needs a self-signed code-signing identity named "FreeFlow Dev"; see `CLAUDE.md`)
+1. Install as described above
 2. Get a free Groq API key from [groq.com](https://groq.com/)
 3. Hold `Fn` to talk and release to stop, or double-tap `Fn` to dictate hands-free until a single tap stops it. Whatever you say is pasted into the current text field
 
