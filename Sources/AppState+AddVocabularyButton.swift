@@ -67,23 +67,16 @@ extension AppState {
     /// The terms in `text` that are not in the vocabulary yet, joined the way
     /// they would be written into it. Nil when `text` adds nothing.
     func newVocabularyTerms(in text: String) -> String? {
-        let wordsToAdd = Self.vocabularyTerms(in: text)
-        guard !wordsToAdd.isEmpty else { return nil }
+        let entriesToAdd = VocabularyEntries.entries(in: text)
+        guard !entriesToAdd.isEmpty else { return nil }
 
-        // Parse current vocabulary list to avoid adding exact duplicates
-        let currentWordsSet = Set(Self.vocabularyTerms(in: self.customVocabulary).map { $0.lowercased() })
-        let newUniqueWords = wordsToAdd.filter { !currentWordsSet.contains($0.lowercased()) }
+        // Compare terms only, so "Higgsfield" is already covered by an
+        // existing "Higgsfield (XField)" entry.
+        var knownTerms = Set(VocabularyEntries.terms(in: self.customVocabulary).map { $0.lowercased() })
+        let newEntries = entriesToAdd.filter { knownTerms.insert($0.term.lowercased()).inserted }
 
-        guard !newUniqueWords.isEmpty else { return nil }
-        return newUniqueWords.joined(separator: ", ")
-    }
-
-    /// Splits a vocabulary blob into its individual terms.
-    private static func vocabularyTerms(in text: String) -> [String] {
-        text
-            .split(whereSeparator: { $0 == "\n" || $0 == "," || $0 == ";" })
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        guard !newEntries.isEmpty else { return nil }
+        return newEntries.map(\.written).joined(separator: ", ")
     }
 
     /// Appends the unique, non-empty terms found in `text` to the custom

@@ -2549,7 +2549,12 @@ final class AppState: ObservableObject, @unchecked Sendable {
         outputLanguage: String = "",
         preserveExactWording: Bool
     ) async -> (finalTranscript: String, outcome: TranscriptProcessingOutcome, prompt: String) {
-        let trimmedRawTranscript = rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Misheard vocabulary variants ("XField" for "Higgsfield") are fixed
+        // before the model sees the transcript, and again on its output.
+        let trimmedRawTranscript = VocabularyEntries.applyingCorrections(
+            to: rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines),
+            vocabulary: customVocabulary
+        )
 
         guard !trimmedRawTranscript.isEmpty else {
             return ("", .skippedEmptyRawTranscript, "")
@@ -2614,7 +2619,11 @@ final class AppState: ObservableObject, @unchecked Sendable {
                 customSystemPrompt: customSystemPrompt,
                 outputLanguage: outputLanguage
             )
-            return (result.transcript, .postProcessingSucceeded, result.prompt)
+            let correctedTranscript = VocabularyEntries.applyingCorrections(
+                to: result.transcript,
+                vocabulary: customVocabulary
+            )
+            return (correctedTranscript, .postProcessingSucceeded, result.prompt)
         } catch {
             os_log(.error, log: recordingLog, "Post-processing failed: %{public}@", error.localizedDescription)
             return (trimmedRawTranscript, .postProcessingFailedFallback, "")

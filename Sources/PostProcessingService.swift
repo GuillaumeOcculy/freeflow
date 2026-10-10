@@ -888,14 +888,10 @@ Model: \(model)
         return PostProcessingResult(transcript: sanitized, prompt: promptForDisplay)
     }
 
+    /// The model only sees the terms. Their misheard variants are corrected
+    /// in code by `VocabularyEntries.applyingCorrections`.
     private func mergedVocabularyTerms(rawVocabulary: String) -> [String] {
-        let terms = rawVocabulary
-            .split(whereSeparator: { $0 == "\n" || $0 == "," || $0 == ";" })
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        var seen = Set<String>()
-        return terms.filter { seen.insert($0.lowercased()).inserted }
+        VocabularyEntries.terms(in: rawVocabulary)
     }
 
     private func normalizedVocabularyText(_ vocabularyTerms: [String]) -> String {

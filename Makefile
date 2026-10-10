@@ -20,6 +20,7 @@ TEST_PRODUCTION_SOURCES = \
 	Sources/ModelConfiguration.swift \
 	Sources/TranscriptTextCore.swift \
 	Sources/UpdateManager.swift \
+	Sources/VocabularyEntries.swift \
 	Sources/ShortcutCore/DictationShortcutSessionController.swift \
 	Sources/ShortcutCore/ShortcutMatcher.swift \
 	Sources/ShortcutCore/ShortcutModels.swift
