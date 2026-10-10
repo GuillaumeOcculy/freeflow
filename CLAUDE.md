@@ -43,12 +43,38 @@ Notes for anyone re-reading the brief:
   It never captured anything — it existed only to register FreeFlow in the
   Screen Recording list.
 
-Remaining from the brief: the four "After it works" improvements — cleanup
-prompt, vocabulary seeding, `language: "fr"` check, optional local WhisperKit.
-One caveat found while reading it: the cleanup prompt's rule "convert spoken
-numbers to digits above ten, keep small numbers as words" would undo the
-current behavior of writing dictated "1, 2, 3" as digits. Adjust that line
-before applying the prompt.
+The brief's "After it works" improvements: the cleanup prompt is applied (as
+`PostProcessingService.defaultSystemPrompt`, with its numbers rule adjusted to
+keep dictated "1, 2, 3" as digits); the `language: "fr"` item was rejected (see
+User context); vocabulary seeding happens by hand in Settings. Only the
+optional local WhisperKit remains.
+
+Cleanup and vocabulary (outside the brief, done):
+
+- Long dictations come out in paragraphs: from about four sentences, split at
+  changes of idea, two to four sentences each, blank line between.
+- gpt-oss-20b, the default cleanup model, largely ignores rules buried in the
+  long system prompt. Paragraphing went from 0/3 to 4/4 once the rule was
+  repeated in the user message next to the transcript. Put any rule that must
+  hold there too, and measure it against the API rather than trusting one
+  manual dictation — output varies between runs even at temperature 0.
+- `TranscriptOutputSanitizer` rejoins sentence-per-line output (markdown hard
+  breaks, two trailing spaces) and folds U+2010/U+2011 hyphens to ASCII, so
+  "peut-être" stays searchable.
+- A vocabulary entry may list misheard variants: `Higgsfield (XField, X Field)`.
+  `VocabularyEntries` replaces them in code, whole words, case-insensitive,
+  on the raw transcript and again on the model output. The model only sees the
+  terms. Neither alternative worked: the model does not map "XField" to
+  "Higgsfield" on its own, and passing the vocabulary to Whisper as `prompt`
+  fixed the word but dropped up to a quarter of the transcript.
+- The Add to Vocabulary shortcut asks for confirmation (Return or the button;
+  Escape, any other shortcut or 5 s cancels). Return is intercepted only while
+  the prompt is up; Shift/Command+Return still reach the app.
+
+Toolchain: Swift 6.4 and the macOS 26 SDK flagged nested `[weak self]` under
+an implicit strong capture, and `AVAudioConverter` in a checked
+`OSAllocatedUnfairLock`. Both are fixed; expect more of this kind after Xcode
+updates — `make check` failing on untouched code usually means a new compiler.
 
 Dictation shortcut (outside the brief, done):
 

@@ -23,21 +23,30 @@
   <i>Thank you to <a href="https://github.com/marcbodea">@marcbodea</a> for maintaining FreeFlow!</i>
 </p>
 
+> **Personal fork.** This is a personal, never-redistributed fork of
+> [zachlatta/freeflow](https://github.com/zachlatta/freeflow). It removes the
+> Screen Recording permission and all screenshot capture, merges the two
+> dictation shortcuts into one, and tunes cleanup for French dictation with
+> embedded English technical terms. The download link above is the upstream
+> build; this fork is built from source (see Quick Start).
+
 ## Overview
 
 FreeFlow is a free Mac dictation app inspired by [Wispr Flow](https://wisprflow.ai/), [Superwhisper](https://superwhisper.com/), and [Monologue](https://www.monologue.to/). It gives you fast AI transcription, context-aware cleanup, and voice-driven text editing without a monthly subscription.
 
 ## Quick Start
 
-1. Download the app from above or [click here](https://github.com/zachlatta/freeflow/releases/latest/download/FreeFlow.dmg)
+1. Build and launch with `make run` (needs a self-signed code-signing identity named "FreeFlow Dev"; see `CLAUDE.md`)
 2. Get a free Groq API key from [groq.com](https://groq.com/)
-3. Hold `Fn` to talk, or tap `Command-Fn` to start and stop dictation, and have whatever you say pasted into the current text field
+3. Hold `Fn` to talk and release to stop, or double-tap `Fn` to dictate hands-free until a single tap stops it. Whatever you say is pasted into the current text field
 
 ## Features
 
-- **Custom shortcuts:** Customize both hold-to-talk and toggle dictation shortcuts. If your toggle shortcut extends your hold shortcut, you can start in hold mode and press the extra modifier keys to latch into tap mode without stopping the recording.
-- **Context-aware cleanup:** FreeFlow can read nearby app context so names, terms, and phrases are spelled correctly when you dictate into email, terminals, docs, and other apps.
-- **Custom vocabulary:** Add names, jargon, and project-specific words that FreeFlow should preserve during cleanup.
+- **One dictation shortcut:** Hold to talk, or double-tap for hands-free dictation. A lone tap is ignored.
+- **Context-aware cleanup:** FreeFlow reads the frontmost app's name, window title and selected text through Accessibility, so formatting and spelling fit email, terminals, docs and chat. No Screen Recording permission, no screenshots.
+- **Readable output:** Long dictations are split into paragraphs at changes of idea; spoken enumerations become lists; reported speech is quoted.
+- **Custom vocabulary:** Add names, jargon, and project-specific words that FreeFlow should preserve during cleanup. When speech recognition keeps mishearing a term, list the misheard forms in parentheses — `Higgsfield (XField, X Field)` — and FreeFlow replaces them.
+- **Add to Vocabulary shortcut:** Select a word anywhere, press the shortcut, confirm with Return.
 - **OpenAI-compatible providers:** Use Groq by default, or configure a custom model and API URL in settings.
 
 ## Edit Mode

@@ -4,6 +4,8 @@ Drop-in system prompt for a Wispr Flow-style cleanup layer.
 Two modes (`LIGHT` / `FULL`), app-aware formatting, FR/EN code-switching safe.
 
 Tested target: `qwen3:4b` or `qwen3:8b` via Ollama. Works with Haiku / GPT-4.1-mini too.
+In this fork it runs as `PostProcessingService.defaultSystemPrompt` on Groq's
+`openai/gpt-oss-20b`; that file, not this one, is the source of truth.
 
 ---
 
@@ -70,8 +72,10 @@ Keep them when they carry real meaning ("en fait" as a genuine contrast,
 Restore accents, punctuation, capitalization. Fix homophone agreement errors
 the ASR is likely to make: a/à, ou/où, ces/ses/c'est/s'est, se/ce,
 -er/-é/-ez endings, participle agreement, plural agreement.
-Convert spoken numbers to digits above ten ("deux mille vingt-six" → 2026),
-keep small numbers as words when they read naturally.
+Write numbers the way the speaker would type them: digits for enumerations,
+counts, versions, dates, quantities and anything technical ("un, deux, trois"
+dictated as a list stays "1, 2, 3"; "deux mille vingt-six" → 2026). Spell out
+a small number only inside ordinary prose where a word reads naturally.
 
 # French typography
 
@@ -124,6 +128,13 @@ Otherwise → plain prose.
 
 When in doubt, do not structure. Over-formatting is worse than none.
 Never invent headings. Never add a title.
+
+Paragraphs are not over-formatting. From about four sentences on, split
+prose into paragraphs of two to four sentences separated by one blank line,
+breaking at a change of idea (donc, de plus, par contre, ensuite, parce que,
+il faut savoir que, ok, so, also, anyway). Sentences of one paragraph stay on
+the same line. Shorter dictations stay one paragraph. Paragraphing only adds
+blank lines; it never changes a word. This applies in terminals too.
 ```
 
 ---
@@ -157,7 +168,9 @@ SCI, LMNP, DPE, SCPI, marchand de biens, Cotonou
 ```
 
 Add client names, repo names, and recurring proper nouns as you hit
-mis-transcriptions. This list is the cheapest accuracy win available —
+mis-transcriptions. When Whisper keeps mangling a term the same way, list the
+mangled forms in parentheses — `Higgsfield (XField, X Field)` — and the app
+replaces them in code. The model alone does not make that connection. This list is the cheapest accuracy win available —
 it fixes what no model change will.
 
 ---
@@ -211,6 +224,11 @@ Move up to `qwen3:8b`, or add the offending term to `{VOCAB}`.
 
 **If it answers instead of rewriting** — reinforce by prefixing the user
 message with `Rewrite this transcript:` rather than sending it bare.
+
+**If a rule is ignored** — small models like gpt-oss-20b follow the user
+message far better than a rule buried in a long system prompt. Repeat the
+rule there, next to the transcript, and measure over several API runs:
+output varies even at temperature 0.
 
 **If accents are missing** — that is an ASR problem, not a cleanup problem.
 Check that the language is auto-detected rather than forced.

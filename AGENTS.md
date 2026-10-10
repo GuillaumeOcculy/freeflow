@@ -12,8 +12,10 @@ that architecture unless the user explicitly approves a migration.
 - `Sources/TranscriptionService.swift` and
   `Sources/RealtimeTranscriptionService.swift`: transcription providers.
 - `Sources/PostProcessingService.swift`: transcript cleanup and edit mode.
-- `Sources/AppContextService.swift`: foreground-app metadata and screenshots.
+- `Sources/AppContextService.swift`: foreground-app metadata via Accessibility (no screenshots in this fork).
 - `Sources/ShortcutCore/`: shortcut models, matching, and session behavior.
+- `Sources/VocabularyEntries.swift`: custom vocabulary parsing and misheard-variant
+  corrections.
 - `Sources/PipelineHistoryStore.swift`: local pipeline history.
 - `Sources/UpdateManager.swift`: update and release behavior.
 - `Sources/SettingsView.swift`, `Sources/SetupView.swift`, and other SwiftUI

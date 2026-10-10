@@ -8,6 +8,29 @@ This project uses semantic versioning for public releases. Use `MAJOR.MINOR.PATC
 - `MINOR` changes add user-visible features and improvements.
 - `PATCH` changes fix bugs, polish existing behavior, or make small internal improvements.
 
+## Unreleased (personal fork)
+
+### Added
+
+- Long dictations are split into paragraphs at changes of idea.
+- Vocabulary entries can list misheard variants in parentheses, as in `Higgsfield (XField, X Field)`; they are replaced in code.
+- The Add to Vocabulary shortcut asks for confirmation before writing anything.
+- A single Dictation Shortcut: hold to talk, double-tap for hands-free.
+
+### Improved
+
+- Spoken enumerations become lists without ordinal markers, and reported speech is quoted whoever the speaker is.
+- Vocabulary feedback appears next to where you are writing.
+
+### Fixed
+
+- Sentence-per-line cleanup output is rejoined into paragraphs, and Unicode hyphens are written as plain hyphens.
+- Builds cleanly with Swift 6.4 and the macOS 26 SDK.
+
+### Removed
+
+- The Screen Recording permission and all screenshot capture; app context comes from Accessibility only.
+
 ## [1.2.1] - 2026-08-11
 
 ### Improved
